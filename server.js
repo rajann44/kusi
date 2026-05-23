@@ -325,12 +325,11 @@ app.get('/api/market-status', async (req, res) => {
       }
     }
 
-    // 2. Fetch indices (SPY, QQQ, DIA, BTC)
+    // 2. Fetch indices (SPY, QQQ, BTC)
     const symbols = {
-      SPY: { name: 'S&P 500 (SPY)', defaultPrice: 515.20, finnhubSymbol: 'SPY' },
-      QQQ: { name: 'Nasdaq 100 (QQQ)', defaultPrice: 438.50, finnhubSymbol: 'QQQ' },
-      DIA: { name: 'Dow Jones (DIA)', defaultPrice: 392.10, finnhubSymbol: 'DIA' },
-      BTC: { name: 'Bitcoin (BTC)', defaultPrice: 67420.00, finnhubSymbol: 'BINANCE:BTCUSDT' }
+      SPY: { name: 'S&P 500 (SPY)', defaultPrice: 747.47, finnhubSymbol: 'SPY' },
+      QQQ: { name: 'Nasdaq 100 (QQQ)', defaultPrice: 717.66, finnhubSymbol: 'QQQ' },
+      BTC: { name: 'Bitcoin (BTC)', defaultPrice: 76000.00, finnhubSymbol: 'BINANCE:BTCUSDT' }
     };
 
     const indices = [];

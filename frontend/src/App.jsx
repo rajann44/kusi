@@ -208,7 +208,7 @@ export default function App() {
     const simulator = setInterval(() => {
       const isMarketClosed = marketData.status === 'CLOSED';
       // Equities can only update when market is active, BTC can update 24/7
-      const symbols = isMarketClosed ? ['BTC'] : ['SPY', 'QQQ', 'DIA', 'BTC'];
+      const symbols = isMarketClosed ? ['BTC'] : ['SPY', 'QQQ', 'BTC'];
       const randomSymbol = symbols[Math.floor(Math.random() * symbols.length)];
 
       setMarketData((prev) => {
