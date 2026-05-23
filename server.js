@@ -663,17 +663,33 @@ app.get('/api/companies/:name/history', async (req, res) => {
     const companyName = req.params.name;
     const escapedSearch = companyName.replace(/"/g, '\\"');
     
-    // We search for exact or highly similar matches in the recipients JSON
-    const { data, error } = await supabase
-      .from('news_items')
-      .select('title, investment_amount_usd, funding_type, published_at, source_or_funder, recipients')
-      .eq('is_investment', true)
-      .or(`recipients.cs.[{"name":"${escapedSearch}"}],recipients.cs.["${escapedSearch}"]`)
-      .order('published_at', { ascending: false })
-      .limit(100);
+    // Use Promise.all to run both contains queries to avoid PostgREST .or() parsing errors with commas
+    const [q1, q2] = await Promise.all([
+      supabase
+        .from('news_items')
+        .select('id, title, investment_amount_usd, funding_type, published_at, source_or_funder, recipients')
+        .eq('is_investment', true)
+        .contains('recipients', `[{"name":"${escapedSearch}"}]`)
+        .order('published_at', { ascending: false })
+        .limit(100),
+      supabase
+        .from('news_items')
+        .select('id, title, investment_amount_usd, funding_type, published_at, source_or_funder, recipients')
+        .eq('is_investment', true)
+        .contains('recipients', `["${escapedSearch}"]`)
+        .order('published_at', { ascending: false })
+        .limit(100)
+    ]);
 
-    if (error) throw error;
-    res.json(data || []);
+    if (q1.error) throw q1.error;
+    if (q2.error) throw q2.error;
+
+    // Merge and deduplicate
+    const merged = [...(q1.data || []), ...(q2.data || [])];
+    const unique = Array.from(new Map(merged.map(item => [item.id, item])).values());
+    unique.sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
+
+    res.json(unique);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

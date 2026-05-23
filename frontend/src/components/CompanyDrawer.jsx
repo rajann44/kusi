@@ -11,7 +11,12 @@ export default function CompanyDrawer({ companyName, isOpen, onClose }) {
       fetch(`${API_BASE}/api/companies/${encodeURIComponent(companyName)}/history`)
         .then(res => res.json())
         .then(data => {
-          setHistory(data);
+          if (Array.isArray(data)) {
+            setHistory(data);
+          } else {
+            console.error('Expected array from history API but got:', data);
+            setHistory([]);
+          }
           setLoading(false);
         })
         .catch(err => {
