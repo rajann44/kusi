@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -15,8 +16,48 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+// CORS Security Fix
+const allowedOrigins = process.env.FRONTEND_URL 
+  ? process.env.FRONTEND_URL.split(',') 
+  : ['http://localhost:5173', 'http://127.0.0.1:5173'];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
+}));
+
 app.use(express.json());
+
+// Rate Limiters (Protection against abuse / Denial of Wallet)
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const aiActionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 30, // Limit each IP to 30 summarize/AI requests per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many AI requests from this IP, please try again after an hour' }
+});
+
+const pollLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // Limit manual polling to 10 requests per hour per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many polling requests from this IP, please wait before trying again' }
+});
+
+app.use('/api/', apiLimiter);
 
 // List of connected SSE clients
 let sseClients = [];
@@ -130,11 +171,18 @@ app.get('/api/news', async (req, res) => {
     }
 
     if (search) {
-      const trimmedSearch = search.trim();
-      const escapedJsonSearch = trimmedSearch.replace(/"/g, '\\"');
-      queryBuilder = queryBuilder.or(
-        `title.ilike.%${trimmedSearch}%,source_or_funder.ilike.%${trimmedSearch}%,recipients.cs.[{"name":"${escapedJsonSearch}"}],recipients.cs.[{"ticker":"${escapedJsonSearch}"}],recipients.cs.["${escapedJsonSearch}"]`
-      );
+      // Security: Strip out PostgREST reserved characters to prevent filter injection
+      let safeSearch = search.replace(/[,.():]/g, ' ').trim();
+      const escapedJsonSearch = safeSearch.replace(/"/g, '\\"');
+      
+      // Remove double spaces resulting from replace
+      safeSearch = safeSearch.replace(/\s+/g, ' ');
+      
+      if (safeSearch) {
+        queryBuilder = queryBuilder.or(
+          `title.ilike.%${safeSearch}%,source_or_funder.ilike.%${safeSearch}%,recipients.cs.[{"name":"${escapedJsonSearch}"}],recipients.cs.[{"ticker":"${escapedJsonSearch}"}],recipients.cs.["${escapedJsonSearch}"]`
+        );
+      }
     }
 
     const allowedSortFields = ['published_at', 'investment_amount_usd', 'created_at'];
@@ -510,44 +558,16 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
-// REST API: Get current settings
-app.get('/api/settings', async (req, res) => {
-  try {
-    const settings = await getSettings();
-    res.json(settings);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// REMOVED INSECURE SETTINGS APIs (GET /api/settings and POST /api/settings)
 
-// REST API: Update settings
-app.post('/api/settings', async (req, res) => {
-  try {
-    const newSettings = req.body;
-    
-    for (const [key, val] of Object.entries(newSettings)) {
-      const { error } = await supabase
-        .from('settings')
-        .upsert({ key, value: String(val) });
-      if (error) throw error;
-    }
-
-    // Restart the polling cycle with the new interval if changed
-    await scheduleBackgroundPolling();
-
-    res.json({ message: 'Settings saved successfully' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // REST API: Get poller diagnostics status
 app.get('/api/poller-status', (req, res) => {
   res.json(pollerStatus);
 });
 
-// REST API: Manually trigger a poll cycle
-app.post('/api/poll', async (req, res) => {
+// REST API: Manually trigger a poll cycle (Rate limited)
+app.post('/api/poll', pollLimiter, async (req, res) => {
   try {
     // Non-blocking trigger so HTTP doesn't time out
     executePoll().catch(err => console.error('Manual polling error:', err));
@@ -558,8 +578,8 @@ app.post('/api/poll', async (req, res) => {
   }
 });
 
-// REST API: Generate summary bullets on-demand
-app.post('/api/news/:id/summarize', async (req, res) => {
+// REST API: Generate summary bullets on-demand (Rate limited)
+app.post('/api/news/:id/summarize', aiActionLimiter, async (req, res) => {
   try {
     const { id } = req.params;
     
