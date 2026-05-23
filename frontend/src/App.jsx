@@ -75,6 +75,18 @@ export default function App() {
     return `$${(value / 1e6).toFixed(1)}M`;
   };
 
+  // Helper to clear and reset Search & Analytics filters
+  const handleClearFilters = () => {
+    setLogsSearchQuery('');
+    setLogsSector('');
+    setLogsFundingType('all');
+    setLogsListingStatus('all');
+    setLogsSortBy('published_at');
+    setLogsSortOrder('desc');
+    setLogsPage(1);
+    showToast('All filters reset', 'success');
+  };
+
   // Helper to show custom toasts
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -1231,23 +1243,126 @@ export default function App() {
           <div className="dashboard-grid">
             {/* Left Column: Search Feed */}
             <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                  <div style={{ flexGrow: 1, minWidth: '250px' }}>
-                    <input
-                      type="text"
-                      placeholder="🔍 Search company name, funder, key phrase..."
-                      className="glass-input"
-                      value={logsSearchQuery}
-                      onChange={(e) => setLogsSearchQuery(e.target.value)}
-                    />
+              {/* Filter Console */}
+              <div className="filter-console">
+                <div className="filter-console-header">
+                  <div className="filter-console-title">
+                    <span>🔍 Advanced Filter Console</span>
+                  </div>
+                  <button 
+                    type="button" 
+                    className="filter-reset-btn"
+                    onClick={handleClearFilters}
+                  >
+                    🔄 Reset Filters
+                  </button>
+                </div>
+
+                {/* Quick Presets Row */}
+                <div className="presets-row">
+                  <span className="presets-label">⚡ Quick Presets:</span>
+                  <div className="presets-list">
+                    <button 
+                      type="button"
+                      className={`preset-btn ${logsSearchQuery === '' && logsSector === '' && logsFundingType === 'all' && logsListingStatus === 'all' && logsSortBy === 'published_at' && logsSortOrder === 'desc' ? 'active' : ''}`}
+                      onClick={handleClearFilters}
+                    >
+                      All Transactions
+                    </button>
+                    <button 
+                      type="button"
+                      className={`preset-btn ${logsFundingType === 'government' && logsListingStatus === 'all' && logsSector === '' ? 'active' : ''}`}
+                      onClick={() => {
+                        setLogsFundingType('government');
+                        setLogsListingStatus('all');
+                        setLogsSector('');
+                        setLogsPage(1);
+                        showToast('Filter: Government Grants', 'success');
+                      }}
+                    >
+                      🏛️ Gov Grants
+                    </button>
+                    <button 
+                      type="button"
+                      className={`preset-btn ${logsFundingType === 'private' && logsListingStatus === 'all' && logsSector === '' ? 'active' : ''}`}
+                      onClick={() => {
+                        setLogsFundingType('private');
+                        setLogsListingStatus('all');
+                        setLogsSector('');
+                        setLogsPage(1);
+                        showToast('Filter: Private Capital', 'success');
+                      }}
+                    >
+                      💼 Venture Capital
+                    </button>
+                    <button 
+                      type="button"
+                      className={`preset-btn ${logsListingStatus === 'public' && logsFundingType === 'all' && logsSector === '' ? 'active' : ''}`}
+                      onClick={() => {
+                        setLogsListingStatus('public');
+                        setLogsFundingType('all');
+                        setLogsSector('');
+                        setLogsPage(1);
+                        showToast('Filter: Publicly Listed Companies', 'success');
+                      }}
+                    >
+                      📈 Publicly Listed
+                    </button>
+                    <button 
+                      type="button"
+                      className={`preset-btn ${logsSortBy === 'investment_amount_usd' && logsSortOrder === 'desc' ? 'active' : ''}`}
+                      onClick={() => {
+                        setLogsSortBy('investment_amount_usd');
+                        setLogsSortOrder('desc');
+                        setLogsPage(1);
+                        showToast('Sorted by Highest Funding', 'success');
+                      }}
+                    >
+                      🔥 Top Funding
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="filter-grid">
+                  <div className="filter-field field-search">
+                    <span className="filter-field-label">Search Keywords</span>
+                    <div className="search-input-wrapper">
+                      <span className="search-input-icon">🔍</span>
+                      <input
+                        type="text"
+                        placeholder="Search company name, funder, key phrase..."
+                        className="glass-input search-input-with-icon"
+                        value={logsSearchQuery}
+                        onChange={(e) => {
+                          setLogsSearchQuery(e.target.value);
+                          setLogsPage(1);
+                        }}
+                      />
+                      {logsSearchQuery && (
+                        <button 
+                          type="button" 
+                          className="search-input-clear"
+                          onClick={() => {
+                            setLogsSearchQuery('');
+                            setLogsPage(1);
+                          }}
+                          aria-label="Clear search"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <div style={{ width: '220px' }}>
+                  <div className="filter-field field-sector">
+                    <span className="filter-field-label">Sector Category</span>
                     <select
                       className="glass-input"
                       value={logsSector}
-                      onChange={(e) => setLogsSector(e.target.value)}
+                      onChange={(e) => {
+                        setLogsSector(e.target.value);
+                        setLogsPage(1);
+                      }}
                     >
                       <option value="">📁 All Sectors</option>
                       {sectors.map(s => (
@@ -1255,60 +1370,81 @@ export default function App() {
                       ))}
                     </select>
                   </div>
-                </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <div className="filter-field field-funding">
+                    <span className="filter-field-label">Funding Source</span>
                     <div className="segmented-control">
                       <button 
                         type="button" 
                         className={`segmented-btn ${logsFundingType === 'all' ? 'active' : ''}`}
-                        onClick={() => setLogsFundingType('all')}
+                        onClick={() => {
+                          setLogsFundingType('all');
+                          setLogsPage(1);
+                        }}
                       >
                         All Funding
                       </button>
                       <button 
                         type="button" 
                         className={`segmented-btn ${logsFundingType === 'government' ? 'active' : ''}`}
-                        onClick={() => setLogsFundingType('government')}
+                        onClick={() => {
+                          setLogsFundingType('government');
+                          setLogsPage(1);
+                        }}
                       >
                         🏛️ Gov Only
                       </button>
                       <button 
                         type="button" 
                         className={`segmented-btn ${logsFundingType === 'private' ? 'active' : ''}`}
-                        onClick={() => setLogsFundingType('private')}
+                        onClick={() => {
+                          setLogsFundingType('private');
+                          setLogsPage(1);
+                        }}
                       >
                         💼 Private Only
                       </button>
                     </div>
+                  </div>
 
+                  <div className="filter-field field-listing">
+                    <span className="filter-field-label">Listing Status</span>
                     <div className="segmented-control">
                       <button 
                         type="button" 
                         className={`segmented-btn ${logsListingStatus === 'all' ? 'active' : ''}`}
-                        onClick={() => setLogsListingStatus('all')}
+                        onClick={() => {
+                          setLogsListingStatus('all');
+                          setLogsPage(1);
+                        }}
                       >
                         All Listings
                       </button>
                       <button 
                         type="button" 
                         className={`segmented-btn ${logsListingStatus === 'public' ? 'active' : ''}`}
-                        onClick={() => setLogsListingStatus('public')}
+                        onClick={() => {
+                          setLogsListingStatus('public');
+                          setLogsPage(1);
+                        }}
                       >
                         📈 Public Only
                       </button>
                       <button 
                         type="button" 
                         className={`segmented-btn ${logsListingStatus === 'private' ? 'active' : ''}`}
-                        onClick={() => setLogsListingStatus('private')}
+                        onClick={() => {
+                          setLogsListingStatus('private');
+                          setLogsPage(1);
+                        }}
                       >
                         🔒 Private Only
                       </button>
                     </div>
                   </div>
 
-                  <div style={{ width: '220px' }}>
+                  <div className="filter-field field-sort">
+                    <span className="filter-field-label">Sort Order</span>
                     <select
                       className="glass-input"
                       value={`${logsSortBy}:${logsSortOrder}`}
@@ -1316,6 +1452,7 @@ export default function App() {
                         const [sortBy, sortOrder] = e.target.value.split(':');
                         setLogsSortBy(sortBy);
                         setLogsSortOrder(sortOrder);
+                        setLogsPage(1);
                       }}
                     >
                       <option value="published_at:desc">📅 Newest First</option>
@@ -1325,6 +1462,82 @@ export default function App() {
                     </select>
                   </div>
                 </div>
+
+                {/* Active Filters Row */}
+                {(logsSearchQuery || logsSector || logsFundingType !== 'all' || logsListingStatus !== 'all') && (
+                  <div className="active-filters-row">
+                    <span className="active-filters-label">Active Filters:</span>
+                    <div className="active-filters-list">
+                      {logsSearchQuery && (
+                        <span className="active-filter-badge">
+                          🔍 "{logsSearchQuery}"
+                          <button 
+                            type="button" 
+                            className="active-filter-close"
+                            onClick={() => {
+                              setLogsSearchQuery('');
+                              setLogsPage(1);
+                            }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      )}
+                      {logsSector && (
+                        <span className="active-filter-badge">
+                          📁 {logsSector}
+                          <button 
+                            type="button" 
+                            className="active-filter-close"
+                            onClick={() => {
+                              setLogsSector('');
+                              setLogsPage(1);
+                            }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      )}
+                      {logsFundingType !== 'all' && (
+                        <span className="active-filter-badge">
+                          {logsFundingType === 'government' ? '🏛️ Gov Funding' : '💼 Private Funding'}
+                          <button 
+                            type="button" 
+                            className="active-filter-close"
+                            onClick={() => {
+                              setLogsFundingType('all');
+                              setLogsPage(1);
+                            }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      )}
+                      {logsListingStatus !== 'all' && (
+                        <span className="active-filter-badge">
+                          {logsListingStatus === 'public' ? '📈 Public' : '🔒 Private'}
+                          <button 
+                            type="button" 
+                            className="active-filter-close"
+                            onClick={() => {
+                              setLogsListingStatus('all');
+                              setLogsPage(1);
+                            }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      )}
+                      <button 
+                        type="button"
+                        className="clear-all-badge-btn" 
+                        onClick={handleClearFilters}
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px', color: 'hsl(var(--text-secondary))', paddingBottom: '8px', borderBottom: '1px solid hsl(var(--border-light))' }}>
