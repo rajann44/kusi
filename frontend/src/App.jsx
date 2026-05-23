@@ -63,6 +63,11 @@ export default function App() {
   const [trends, setTrends] = useState([]);
   const [hoveredTrendPoint, setHoveredTrendPoint] = useState(null); // { quarter, govAmount, govCount, privateAmount, privateCount, x, y }
 
+  // US Market hours status and indices states
+  const [marketData, setMarketData] = useState(null);
+  const [tickFlashes, setTickFlashes] = useState({});
+
+
   // Format funding amounts helper
   const formatAmount = (value) => {
     if (!value || value <= 0) return 'Undisclosed';
@@ -105,17 +110,159 @@ export default function App() {
     );
   };
 
+  // Helper to render a beautiful micro sparkline SVG for index trends
+  const renderSparkline = (prices, isPositive) => {
+    if (!prices || prices.length < 2) return null;
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const range = max - min === 0 ? 1 : max - min;
+    const width = 60;
+    const height = 16;
+    const points = prices.map((price, idx) => {
+      const x = (idx / (prices.length - 1)) * width;
+      const y = height - ((price - min) / range) * height;
+      return `${x},${y}`;
+    }).join(' ');
+
+    const strokeColor = isPositive ? 'hsl(var(--accent-green))' : 'hsl(var(--accent-red))';
+    const fillGradient = isPositive ? 'url(#greenSparklineGrad)' : 'url(#redSparklineGrad)';
+
+    const firstPoint = `0,${height}`;
+    const lastPoint = `${width},${height}`;
+    const areaPoints = `${firstPoint} ${points} ${lastPoint} Z`;
+
+    return (
+      <svg width={width} height={height} style={{ overflow: 'visible', margin: '0 4px 0 8px', flexShrink: 0 }}>
+        <polyline
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth="1.5"
+          points={points}
+        />
+        <polygon
+          fill={fillGradient}
+          points={areaPoints}
+        />
+      </svg>
+    );
+  };
+
+  const fetchMarketStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/market-status`);
+      if (res.ok) {
+        const data = await res.json();
+        setMarketData(prev => {
+          const updatedIndices = data.indices.map(newIdx => {
+            const prevIdx = prev && prev.indices.find(p => p.symbol === newIdx.symbol);
+            let history = prevIdx && prevIdx.history ? [...prevIdx.history] : [];
+            
+            if (history.length === 0) {
+              let current = newIdx.price;
+              const isCrypto = newIdx.symbol === 'BTC';
+              const step = isCrypto ? 25.0 : 0.25;
+              for (let i = 0; i < 15; i++) {
+                const change = (Math.random() - 0.48) * step;
+                current -= change;
+                history.unshift(current);
+              }
+              history[history.length - 1] = newIdx.price;
+            } else {
+              if (history[history.length - 1] !== newIdx.price) {
+                history.push(newIdx.price);
+                if (history.length > 15) history.shift();
+              }
+            }
+            return {
+              ...newIdx,
+              history
+            };
+          });
+          return {
+            ...data,
+            indices: updatedIndices
+          };
+        });
+      }
+    } catch (e) {
+      console.error('Error fetching market status:', e);
+    }
+  };
+
+  // US market indices simulation effect for ticking prices when market is active
+  useEffect(() => {
+    if (!marketData) return;
+
+    const simulator = setInterval(() => {
+      const isMarketClosed = marketData.status === 'CLOSED';
+      // Equities can only update when market is active, BTC can update 24/7
+      const symbols = isMarketClosed ? ['BTC'] : ['SPY', 'QQQ', 'DIA', 'BTC'];
+      const randomSymbol = symbols[Math.floor(Math.random() * symbols.length)];
+
+      setMarketData((prev) => {
+        if (!prev) return null;
+        const updatedIndices = prev.indices.map((idx) => {
+          if (idx.symbol === randomSymbol) {
+            const isUp = Math.random() > 0.45;
+            const isCrypto = randomSymbol === 'BTC';
+            const scale = isCrypto ? 12.0 : 0.08;
+            const delta = (Math.random() * scale + (isCrypto ? 1.0 : 0.01)) * (isUp ? 1 : -1);
+            const newPrice = Math.max(10, idx.price + delta);
+            const newChange = idx.change + delta;
+            const newPercentChange = (newChange / (newPrice - newChange)) * 100;
+            
+            setTickFlashes((prevFlashes) => ({
+              ...prevFlashes,
+              [randomSymbol]: isUp ? 'up' : 'down'
+            }));
+
+            setTimeout(() => {
+              setTickFlashes((prevFlashes) => {
+                const copy = { ...prevFlashes };
+                delete copy[randomSymbol];
+                return copy;
+              });
+            }, 800);
+
+            const history = idx.history ? [...idx.history, newPrice].slice(-15) : [newPrice];
+
+            return {
+              ...idx,
+              price: newPrice,
+              change: newChange,
+              percentChange: newPercentChange,
+              history
+            };
+          }
+          return idx;
+        });
+
+        return {
+          ...prev,
+          indices: updatedIndices
+        };
+      });
+    }, 2500);
+
+    return () => clearInterval(simulator);
+  }, [marketData ? marketData.status : null]);
+
   // Fetch news history, stats and settings on mount
   useEffect(() => {
     fetchNews();
     fetchStats();
     fetchSettings();
     fetchTrends();
+    fetchMarketStatus();
+
+    const marketInterval = setInterval(fetchMarketStatus, 15000);
 
     // Check browser notification permission
     if ('Notification' in window) {
       setBrowserNotificationsEnabled(Notification.permission === 'granted');
     }
+
+    return () => clearInterval(marketInterval);
   }, []);
 
   // Establish Server-Sent Events connection for real-time notifications
@@ -822,6 +969,58 @@ export default function App() {
         {/* DASHBOARD TAB */}
         {activeTab === 'dashboard' && (
           <div>
+            {/* Market Status & Indices Bar */}
+            {marketData && (
+              <div className="glass-panel market-status-bar" style={{ marginBottom: '24px' }}>
+                {/* Global SVG Definitions for Sparkline Gradients */}
+                <svg style={{ position: 'absolute', width: 0, height: 0 }}>
+                  <defs>
+                    <linearGradient id="greenSparklineGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--accent-green))" stopOpacity="0.25" />
+                      <stop offset="100%" stopColor="hsl(var(--accent-green))" stopOpacity="0" />
+                    </linearGradient>
+                    <linearGradient id="redSparklineGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--accent-red))" stopOpacity="0.25" />
+                      <stop offset="100%" stopColor="hsl(var(--accent-red))" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+
+                <div className="market-status-time-group">
+                  <div className="market-date-string">{marketData.dateEstString}</div>
+                  <div className="market-status-badge-container">
+                    <span className={`market-status-dot ${marketData.status.toLowerCase()}`} />
+                    <span className="market-status-label">{marketData.label}</span>
+                    <span className="market-time-est">({marketData.timeEstString})</span>
+                  </div>
+                  {marketData.detailMessage && (
+                    <div className="market-status-details">{marketData.detailMessage}</div>
+                  )}
+                </div>
+                <div className="market-indices-group">
+                  {marketData.indices.map((idx) => {
+                    const isPositive = idx.change >= 0;
+                    const changeSymbol = isPositive ? '+' : '';
+                    const flash = tickFlashes[idx.symbol];
+                    return (
+                      <div key={idx.symbol} className={`market-index-item ${flash ? `flash-${flash}` : ''}`}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span className="market-index-name" style={{ lineHeight: 1 }}>{idx.name}</span>
+                          <span className="market-index-price" style={{ lineHeight: 1 }}>
+                            ${idx.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        {renderSparkline(idx.history, isPositive)}
+                        <span className={`market-index-change ${isPositive ? 'positive' : 'negative'}`} style={{ alignSelf: 'center', minWidth: '45px', textAlign: 'right' }}>
+                          {changeSymbol}{idx.percentChange.toFixed(2)}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Stats Cards */}
             <div className="stats-grid">
               <div className="glass-panel stat-card gov-panel">

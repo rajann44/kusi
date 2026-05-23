@@ -232,6 +232,165 @@ app.get('/api/analytics/trends', async (req, res) => {
   }
 });
 
+// Simple cache for market status to respect API rate limits
+let marketStatusCache = null;
+let marketStatusCacheTime = 0;
+
+// REST API: Get US Market hours status and indices
+app.get('/api/market-status', async (req, res) => {
+  try {
+    const now = Date.now();
+    if (marketStatusCache && (now - marketStatusCacheTime < 10000)) {
+      return res.json(marketStatusCache);
+    }
+
+    const settings = await getSettings();
+    const apiKey = settings.finnhub_api_key;
+
+    // 1. Calculate US Market Status in Eastern Time
+    const nowEst = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const day = nowEst.getDay();
+    const hours = nowEst.getHours();
+    const minutes = nowEst.getMinutes();
+    const timeVal = hours * 100 + minutes;
+
+    let status = 'CLOSED';
+    let label = 'Market Closed';
+
+    // Simple market hours logic
+    const year = nowEst.getFullYear();
+    const month = nowEst.getMonth() + 1;
+    const date = nowEst.getDate();
+    const dateString = `${year}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+
+    const holidays = [
+      `${year}-01-01`, // New Year's
+      `${year}-07-04`, // July 4th
+      `${year}-12-25`, // Christmas
+    ];
+
+    const isHoliday = holidays.includes(dateString);
+    const isWeekend = day === 0 || day === 6;
+
+    if (isWeekend || isHoliday) {
+      status = 'CLOSED';
+      label = 'Market Closed';
+    } else {
+      if (timeVal >= 930 && timeVal < 1600) {
+        status = 'OPEN';
+        label = 'Market Open';
+      } else if (timeVal >= 400 && timeVal < 930) {
+        status = 'PRE_MARKET';
+        label = 'Pre-Market';
+      } else if (timeVal >= 1600 && timeVal < 2000) {
+        status = 'AFTER_HOURS';
+        label = 'After-Hours';
+      } else {
+        status = 'CLOSED';
+        label = 'Market Closed';
+      }
+    }
+
+    // Calculate US Market Status Detail Message
+    let detailMessage = "";
+    if (isWeekend) {
+      detailMessage = "Markets closed. Reopens Monday at 9:30 AM EST.";
+    } else if (isHoliday) {
+      detailMessage = "Markets closed for federal holiday. Reopens next business day at 9:30 AM EST.";
+    } else {
+      if (status === 'OPEN') {
+        const remainingHours = 15 - hours;
+        const remainingMinutes = 60 - minutes;
+        if (hours === 15) {
+          detailMessage = `Closes in ${remainingMinutes}m. After-hours follows.`;
+        } else {
+          detailMessage = "Closes at 4:00 PM EST. After-hours follows until 8:00 PM.";
+        }
+      } else if (status === 'PRE_MARKET') {
+        detailMessage = "Pre-market trading. Core market opens at 9:30 AM EST.";
+      } else if (status === 'AFTER_HOURS') {
+        detailMessage = "After-hours session. Closes at 8:00 PM EST.";
+      } else {
+        // Closed night time
+        if (hours >= 20) {
+          const isFriday = day === 5;
+          if (isFriday) {
+            detailMessage = "Markets closed for the weekend. Reopens Monday at 4:00 AM EST (Pre-Market).";
+          } else {
+            detailMessage = "Markets closed. Reopens tomorrow at 4:00 AM EST (Pre-Market).";
+          }
+        } else {
+          detailMessage = "Markets closed. Pre-market session opens at 4:00 AM EST.";
+        }
+      }
+    }
+
+    // 2. Fetch indices (SPY, QQQ, DIA, BTC)
+    const symbols = {
+      SPY: { name: 'S&P 500 (SPY)', defaultPrice: 515.20, finnhubSymbol: 'SPY' },
+      QQQ: { name: 'Nasdaq 100 (QQQ)', defaultPrice: 438.50, finnhubSymbol: 'QQQ' },
+      DIA: { name: 'Dow Jones (DIA)', defaultPrice: 392.10, finnhubSymbol: 'DIA' },
+      BTC: { name: 'Bitcoin (BTC)', defaultPrice: 67420.00, finnhubSymbol: 'BINANCE:BTCUSDT' }
+    };
+
+    const indices = [];
+
+    for (const [symbol, info] of Object.entries(symbols)) {
+      let price = info.defaultPrice;
+      let change = symbol === 'BTC' ? 420.50 : 1.25;
+      let percentChange = symbol === 'BTC' ? 0.63 : 0.24;
+      let source = 'mock';
+
+      if (apiKey) {
+        try {
+          const fetchSymbol = info.finnhubSymbol;
+          const fetchPromise = fetch(`https://finnhub.io/api/v1/quote?symbol=${fetchSymbol}&token=${apiKey}`);
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000));
+          const response = await Promise.race([fetchPromise, timeoutPromise]);
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data && data.c) {
+              price = data.c;
+              change = data.d || 0;
+              percentChange = data.dp || 0;
+              source = 'finnhub';
+            }
+          }
+        } catch (e) {
+          // ignore, fallback to default mock
+        }
+      }
+
+      indices.push({
+        symbol,
+        name: info.name,
+        price,
+        change,
+        percentChange,
+        source
+      });
+    }
+
+    const result = {
+      status,
+      label,
+      detailMessage,
+      timeEst: nowEst.toISOString(),
+      dateEstString: nowEst.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+      timeEstString: nowEst.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' EST',
+      indices
+    };
+
+    marketStatusCache = result;
+    marketStatusCacheTime = now;
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // REST API: Get database statistics
 app.get('/api/stats', async (req, res) => {
   try {
