@@ -1,0 +1,20 @@
+{
+  "name": "invest-alert-backend",
+  "version": "1.0.0",
+  "description": "Real-time investment and grant tracking backend",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.11.0",
+    "@supabase/supabase-js": "^2.106.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.19.2",
+    "sqlite3": "^5.1.7",
+    "xml2js": "^0.6.2"
+  }
+}
