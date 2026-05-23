@@ -19,7 +19,7 @@ const renderSparkline = (prices, isPositive) => {
 
   const firstPoint = `0,${height}`;
   const lastPoint = `${width},${height}`;
-  const areaPoints = `${firstPoint} ${points} ${lastPoint} Z`;
+  const areaPoints = `${firstPoint} ${points} ${lastPoint}`;
 
   return (
     <svg width={width} height={height} style={{ overflow: 'visible', margin: '0 4px 0 8px', flexShrink: 0 }}>
