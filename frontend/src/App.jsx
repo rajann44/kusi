@@ -67,6 +67,18 @@ export default function App() {
   const [marketData, setMarketData] = useState(null);
   const [tickFlashes, setTickFlashes] = useState({});
 
+  // Theme Management
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
+
 
   // Format funding amounts helper
   const formatAmount = (value) => {
@@ -967,6 +979,14 @@ export default function App() {
           </div>
 
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button 
+              type="button"
+              className="theme-toggle-btn"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
+            </button>
             <button 
               className="glass-btn glass-btn-secondary" 
               onClick={handleManualPoll} 
