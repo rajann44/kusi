@@ -182,4 +182,5 @@ export async function runPollingCycle(settings, onNewItemFound) {
   }
 
   console.log(`Polling cycle finished. Found ${newInvestmentsCount} new relevant investments.`);
+  return newInvestmentsCount;
 }

@@ -8,6 +8,9 @@ const formatAmount = (val) => {
 
 export default function AnalyticsChart({ trends }) {
   const [hoveredTrendPoint, setHoveredTrendPoint] = useState(null);
+  const [showGov, setShowGov] = useState(true);
+  const [showPrivate, setShowPrivate] = useState(true);
+  const [timeline, setTimeline] = useState('all');
 
   if (!trends || trends.length === 0) {
     return (
@@ -26,23 +29,28 @@ export default function AnalyticsChart({ trends }) {
   const chartHeight = 240 - paddingTop - paddingBottom; // 190
   const gridLines = [0, 0.25, 0.5, 0.75, 1];
 
-  const maxTrendAmount = Math.max(...trends.map(t => Math.max(t.governmentAmount || 0, t.privateAmount || 0)), 1e9);
+  const displayTrends = timeline === '1y' ? trends.slice(-4) : trends;
 
-  const pointsGov = trends.map((item, idx) => {
-    const x = trends.length > 1 
-      ? paddingLeft + (idx / (trends.length - 1)) * chartWidth 
+  const maxTrendAmount = Math.max(
+    ...displayTrends.map(t => Math.max(showGov ? (t.governmentAmount || 0) : 0, showPrivate ? (t.privateAmount || 0) : 0)), 
+    1e9
+  );
+
+  const pointsGov = showGov ? displayTrends.map((item, idx) => {
+    const x = displayTrends.length > 1 
+      ? paddingLeft + (idx / (displayTrends.length - 1)) * chartWidth 
       : paddingLeft + chartWidth / 2;
     const y = paddingTop + chartHeight - ((item.governmentAmount || 0) / maxTrendAmount) * chartHeight;
     return { x, y, item };
-  });
+  }) : [];
 
-  const pointsPrivate = trends.map((item, idx) => {
-    const x = trends.length > 1 
-      ? paddingLeft + (idx / (trends.length - 1)) * chartWidth 
+  const pointsPrivate = showPrivate ? displayTrends.map((item, idx) => {
+    const x = displayTrends.length > 1 
+      ? paddingLeft + (idx / (displayTrends.length - 1)) * chartWidth 
       : paddingLeft + chartWidth / 2;
     const y = paddingTop + chartHeight - ((item.privateAmount || 0) / maxTrendAmount) * chartHeight;
     return { x, y, item };
-  });
+  }) : [];
 
   const linePathGov = pointsGov.length > 0 ? pointsGov.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') : '';
   const areaPathGov = pointsGov.length > 0 ? `${linePathGov} L ${pointsGov[pointsGov.length - 1].x} ${paddingTop + chartHeight} L ${pointsGov[0].x} ${paddingTop + chartHeight} Z` : '';
@@ -61,9 +69,9 @@ export default function AnalyticsChart({ trends }) {
     let closestIdx = 0;
     let minDiff = Infinity;
     
-    trends.forEach((item, idx) => {
-      const x = trends.length > 1 
-        ? paddingLeft + (idx / (trends.length - 1)) * chartWidth 
+    displayTrends.forEach((item, idx) => {
+      const x = displayTrends.length > 1 
+        ? paddingLeft + (idx / (displayTrends.length - 1)) * chartWidth 
         : paddingLeft + chartWidth / 2;
       const diff = Math.abs(x - svgX);
       if (diff < minDiff) {
@@ -72,9 +80,9 @@ export default function AnalyticsChart({ trends }) {
       }
     });
 
-    const closestItem = trends[closestIdx];
-    const x = trends.length > 1 
-      ? paddingLeft + (closestIdx / (trends.length - 1)) * chartWidth 
+    const closestItem = displayTrends[closestIdx];
+    const x = displayTrends.length > 1 
+      ? paddingLeft + (closestIdx / (displayTrends.length - 1)) * chartWidth 
       : paddingLeft + chartWidth / 2;
     
     setHoveredTrendPoint({
@@ -92,6 +100,36 @@ export default function AnalyticsChart({ trends }) {
 
   return (
     <div style={{ position: 'relative' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '15px', marginBottom: '8px', paddingLeft: '55px' }}>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button 
+            type="button" 
+            className="glass-btn glass-btn-secondary" 
+            style={{ padding: '2px 8px', fontSize: '11px', opacity: timeline === '1y' ? 1 : 0.6 }}
+            onClick={() => setTimeline('1y')}
+          >
+            1 Year
+          </button>
+          <button 
+            type="button" 
+            className="glass-btn glass-btn-secondary" 
+            style={{ padding: '2px 8px', fontSize: '11px', opacity: timeline === 'all' ? 1 : 0.6 }}
+            onClick={() => setTimeline('all')}
+          >
+            All-Time
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: '16px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer', opacity: showGov ? 1 : 0.5, transition: 'opacity 0.2s' }}>
+            <input type="checkbox" checked={showGov} onChange={() => setShowGov(!showGov)} style={{ accentColor: 'hsl(var(--accent-blue))' }} />
+            <span style={{ color: 'hsl(var(--accent-blue))', fontWeight: 'bold' }}>Gov Grants</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer', opacity: showPrivate ? 1 : 0.5, transition: 'opacity 0.2s' }}>
+            <input type="checkbox" checked={showPrivate} onChange={() => setShowPrivate(!showPrivate)} style={{ accentColor: 'hsl(var(--accent-green))' }} />
+            <span style={{ color: 'hsl(var(--accent-green))', fontWeight: 'bold' }}>Private VC</span>
+          </label>
+        </div>
+      </div>
       <svg 
         width="100%" 
         height="240" 
@@ -151,10 +189,10 @@ export default function AnalyticsChart({ trends }) {
         })}
 
         {/* X Axis vertical lines and labels */}
-        {trends.map((t, idx) => {
-          if (trends.length > 8 && idx % 2 !== 0) return null;
-          const x = trends.length > 1 
-            ? paddingLeft + (idx / (trends.length - 1)) * chartWidth 
+        {displayTrends.map((t, idx) => {
+          if (displayTrends.length > 8 && idx % 2 !== 0) return null;
+          const x = displayTrends.length > 1 
+            ? paddingLeft + (idx / (displayTrends.length - 1)) * chartWidth 
             : paddingLeft + chartWidth / 2;
           return (
             <text 
@@ -267,18 +305,22 @@ export default function AnalyticsChart({ trends }) {
           <div style={{ fontWeight: 'bold', marginBottom: '6px', color: 'hsl(var(--text-primary))' }}>
             📆 {hoveredTrendPoint.item.quarter} Summary
           </div>
-          <div className="tooltip-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-            <span className="tooltip-indicator gov-dot"></span>
-            <span className="tooltip-label">Gov Grants:</span>
-            <span className="tooltip-val">{formatAmount(hoveredTrendPoint.item.governmentAmount)}</span>
-            <span className="tooltip-count">({hoveredTrendPoint.item.governmentCount})</span>
-          </div>
-          <div className="tooltip-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className="tooltip-indicator private-dot"></span>
-            <span className="tooltip-label">Private VC:</span>
-            <span className="tooltip-val">{formatAmount(hoveredTrendPoint.item.privateAmount)}</span>
-            <span className="tooltip-count">({hoveredTrendPoint.item.privateCount})</span>
-          </div>
+          {showGov && (
+            <div className="tooltip-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span className="tooltip-indicator gov-dot"></span>
+              <span className="tooltip-label">Gov Grants:</span>
+              <span className="tooltip-val">{formatAmount(hoveredTrendPoint.item.governmentAmount)}</span>
+              <span className="tooltip-count">({hoveredTrendPoint.item.governmentCount})</span>
+            </div>
+          )}
+          {showPrivate && (
+            <div className="tooltip-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="tooltip-indicator private-dot"></span>
+              <span className="tooltip-label">Private VC:</span>
+              <span className="tooltip-val">{formatAmount(hoveredTrendPoint.item.privateAmount)}</span>
+              <span className="tooltip-count">({hoveredTrendPoint.item.privateCount})</span>
+            </div>
+          )}
         </div>
       )}
     </div>

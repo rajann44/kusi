@@ -25,12 +25,14 @@ export default function App() {
   
   const [toast, setToast] = useState(null);
   const [isPolling, setIsPolling] = useState(false);
+  const [dashboardSector, setDashboardSector] = useState('All');
   const [filterSector, setFilterSector] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(false);
 
   // Show status indicator
   const [isLive, setIsLive] = useState(false);
+  const [pollerStatus, setPollerStatus] = useState(null);
 
   // Modal and details states
   const [selectedAlert, setSelectedAlert] = useState(null);
@@ -225,14 +227,29 @@ export default function App() {
     return () => clearInterval(simulator);
   }, [marketData ? marketData.status : null]);
 
+  const fetchPollerStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/poller-status`);
+      if (res.ok) {
+        setPollerStatus(await res.json());
+      }
+    } catch (err) {
+      console.error('Error fetching poller status:', err);
+    }
+  };
+
   // Fetch news history, stats and settings on mount
   useEffect(() => {
     fetchNews();
     fetchStats();
     fetchTrends();
     fetchMarketStatus();
+    fetchPollerStatus();
 
-    const marketInterval = setInterval(fetchMarketStatus, 15000);
+    const marketInterval = setInterval(() => {
+      fetchMarketStatus();
+      fetchPollerStatus();
+    }, 15000);
 
     // Check browser notification permission
     if ('Notification' in window) {
@@ -462,10 +479,14 @@ export default function App() {
 
   // Filtered lists
   const investmentsOnly = news.filter(item => item.is_investment === 1 || item.is_investment === true);
-  const sectors = [...new Set(investmentsOnly.map(item => item.sector).filter(Boolean))];
+  const sectors = [...new Set(investmentsOnly.map(item => item.sector).filter(Boolean))].sort();
   
-  const govInvestments = investmentsOnly.filter(item => item.funding_type === 'government');
-  const privateInvestments = investmentsOnly.filter(item => item.funding_type !== 'government');
+  const govInvestments = investmentsOnly.filter(item => 
+    item.funding_type === 'government' && (dashboardSector === 'All' || item.sector === dashboardSector)
+  );
+  const privateInvestments = investmentsOnly.filter(item => 
+    item.funding_type !== 'government' && (dashboardSector === 'All' || item.sector === dashboardSector)
+  );
 
   // Calculate totals for charts
   const totalFunding = investmentsOnly.reduce((acc, curr) => acc + (curr.investment_amount_usd || 0), 0);
@@ -548,6 +569,25 @@ export default function App() {
           <div className="sidebar-stat-badge">
             Tracked: <strong>{stats.totalInvestments}</strong> deals
           </div>
+
+          {/* Poller Diagnostics Widget */}
+          {pollerStatus && (
+            <div className="sidebar-stat-badge" style={{ marginTop: '12px', fontSize: '11px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong style={{ color: 'hsl(var(--text-bright))' }}>Poller Diagnostics</strong>
+                <span className={`live-dot ${pollerStatus.isPolling ? '' : 'offline'}`} style={{ backgroundColor: pollerStatus.isPolling ? '#3498db' : (pollerStatus.lastError ? '#e74c3c' : '#95a5a6'), width: '8px', height: '8px', marginRight: 0 }}></span>
+              </div>
+              <div style={{ color: 'hsl(var(--text-muted))' }}>
+                Last run: {pollerStatus.lastRunAt ? new Date(pollerStatus.lastRunAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Never'}
+              </div>
+              {pollerStatus.lastError ? (
+                <div style={{ color: '#e74c3c', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={pollerStatus.lastError}>⚠️ {pollerStatus.lastError}</div>
+              ) : (
+                <div style={{ color: '#2ecc71', marginTop: '2px' }}>✅ Healthy ({pollerStatus.itemsFound || 0} hits)</div>
+              )}
+            </div>
+          )}
+
           <div className="desktop-alerts-toggle-container" style={{ marginTop: '12px', borderTop: '1px dashed hsl(var(--border-light))', paddingTop: '12px' }}>
             <button
               type="button"
@@ -710,7 +750,30 @@ export default function App() {
               </div>
             )}
 
-            <div className="dual-feed-grid" style={{ marginTop: '12px' }}>
+            {/* Sector Filter Pills */}
+            {sectors.length > 0 && (
+              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '12px', marginBottom: '8px', scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="hide-scroll">
+                <button 
+                  className={`segmented-btn ${dashboardSector === 'All' ? 'active' : ''}`}
+                  onClick={() => setDashboardSector('All')}
+                  style={{ whiteSpace: 'nowrap', borderRadius: '20px', padding: '6px 14px', fontSize: '12px' }}
+                >
+                  🌍 All Sectors
+                </button>
+                {sectors.map(sector => (
+                  <button 
+                    key={sector}
+                    className={`segmented-btn ${dashboardSector === sector ? 'active' : ''}`}
+                    onClick={() => setDashboardSector(sector)}
+                    style={{ whiteSpace: 'nowrap', borderRadius: '20px', padding: '6px 14px', fontSize: '12px' }}
+                  >
+                    {sector}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="dual-feed-grid" style={{ marginTop: '4px' }}>
               {/* U.S. Government Grants Feed */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <div className="feed-column-title gov-title">

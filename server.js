@@ -22,6 +22,34 @@ app.use(express.json());
 let sseClients = [];
 let pollingIntervalHandle = null;
 
+let pollerStatus = {
+  lastRunAt: null,
+  lastSuccessAt: null,
+  lastError: null,
+  isPolling: false,
+  itemsFound: 0
+};
+
+async function executePoll() {
+  if (pollerStatus.isPolling) return;
+  pollerStatus.isPolling = true;
+  pollerStatus.lastRunAt = new Date().toISOString();
+  pollerStatus.lastError = null;
+  try {
+    const settings = await getSettings();
+    const result = await runPollingCycle(settings, broadcastNewInvestment);
+    pollerStatus.lastSuccessAt = new Date().toISOString();
+    if (result !== undefined) {
+      pollerStatus.itemsFound = result;
+    }
+  } catch (err) {
+    console.error('Error during poll cycle:', err);
+    pollerStatus.lastError = err.message;
+  } finally {
+    pollerStatus.isPolling = false;
+  }
+}
+
 // Helper to push news updates to frontend via SSE and recompute trend cache
 function broadcastNewInvestment(item) {
   sseClients.forEach(client => {
@@ -513,13 +541,16 @@ app.post('/api/settings', async (req, res) => {
   }
 });
 
+// REST API: Get poller diagnostics status
+app.get('/api/poller-status', (req, res) => {
+  res.json(pollerStatus);
+});
+
 // REST API: Manually trigger a poll cycle
 app.post('/api/poll', async (req, res) => {
   try {
-    const settings = await getSettings();
     // Non-blocking trigger so HTTP doesn't time out
-    runPollingCycle(settings, broadcastNewInvestment)
-      .catch(err => console.error('Manual polling error:', err));
+    executePoll().catch(err => console.error('Manual polling error:', err));
     
     res.json({ message: 'Polling cycle triggered' });
   } catch (err) {
@@ -620,8 +651,7 @@ async function scheduleBackgroundPolling() {
   
   pollingIntervalHandle = setInterval(async () => {
     try {
-      const currentSettings = await getSettings();
-      await runPollingCycle(currentSettings, broadcastNewInvestment);
+      await executePoll();
     } catch (err) {
       console.error('Error during scheduled poll cycle:', err);
     }
@@ -642,10 +672,8 @@ app.listen(PORT, async () => {
     await scheduleBackgroundPolling();
 
     // Trigger initial poll on startup
-    const settings = await getSettings();
     console.log('Running startup news poll...');
-    runPollingCycle(settings, broadcastNewInvestment)
-      .catch(err => console.error('Startup polling error:', err));
+    executePoll().catch(err => console.error('Startup polling error:', err));
   } catch (err) {
     console.error('Initialization error during server startup:', err.message);
   }

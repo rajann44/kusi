@@ -201,7 +201,31 @@ const renderDealFlow = (alert) => {
 };
 
 export default function DetailModal({ alert, onClose, isGeneratingBullets }) {
+  const [copied, setCopied] = React.useState(false);
+
   if (!alert) return null;
+
+  const handleCopySummary = () => {
+    if (!alert) return;
+    
+    let textToCopy = `Title: ${alert.title}\n`;
+    textToCopy += `Date: ${new Date(alert.published_at).toLocaleString()}\n`;
+    textToCopy += `Amount: ${alert.investment_amount_usd > 0 ? '$' + alert.investment_amount_usd.toLocaleString() : 'Undisclosed'}\n`;
+    textToCopy += `Sector: ${alert.sector || 'General'}\n`;
+    textToCopy += `Funder: ${alert.source_or_funder || 'Unknown'}\n`;
+    
+    if (alert.summary_bullets && alert.summary_bullets.length > 0) {
+      textToCopy += `\nKey Insights:\n`;
+      alert.summary_bullets.forEach(b => textToCopy += `- ${b}\n`);
+    } else {
+      textToCopy += `\nDescription: ${alert.description}\n`;
+    }
+    
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -285,13 +309,20 @@ export default function DetailModal({ alert, onClose, isGeneratingBullets }) {
           ) : null}
         </div>
 
-        <div className="modal-footer-action">
+        <div className="modal-footer-action" style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+          <button 
+            className="glass-btn glass-btn-secondary" 
+            style={{ flex: 1 }}
+            onClick={handleCopySummary}
+          >
+            {copied ? '✅ Copied!' : '📋 Copy Summary'}
+          </button>
           <a 
             href={alert.url} 
             target="_blank" 
             rel="noopener noreferrer" 
             className="glass-btn"
-            style={{ width: '100%', marginTop: '20px' }}
+            style={{ flex: 2, textAlign: 'center', textDecoration: 'none' }}
           >
             🔗 Open Original Announcement
           </a>
