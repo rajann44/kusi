@@ -661,7 +661,10 @@ app.get('/api/stream', (req, res) => {
 app.get('/api/companies/:name/history', async (req, res) => {
   try {
     const companyName = req.params.name;
-    const escapedSearch = companyName.replace(/"/g, '\\"');
+    
+    // Use JSON.stringify to 100% safely escape ALL special characters (quotes, backslashes, newlines)
+    const queryObj = JSON.stringify([{ "name": companyName }]);
+    const queryStr = JSON.stringify([companyName]);
     
     // Use Promise.all to run both contains queries to avoid PostgREST .or() parsing errors with commas
     const [q1, q2] = await Promise.all([
@@ -669,14 +672,14 @@ app.get('/api/companies/:name/history', async (req, res) => {
         .from('news_items')
         .select('id, title, investment_amount_usd, funding_type, published_at, source_or_funder, recipients')
         .eq('is_investment', true)
-        .contains('recipients', `[{"name":"${escapedSearch}"}]`)
+        .contains('recipients', queryObj)
         .order('published_at', { ascending: false })
         .limit(100),
       supabase
         .from('news_items')
         .select('id, title, investment_amount_usd, funding_type, published_at, source_or_funder, recipients')
         .eq('is_investment', true)
-        .contains('recipients', `["${escapedSearch}"]`)
+        .contains('recipients', queryStr)
         .order('published_at', { ascending: false })
         .limit(100)
     ]);
