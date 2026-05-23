@@ -986,23 +986,52 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: hsl(var(--bg-dark) / 0.5);
-  border: 1px solid hsl(var(--border-light));
-  border-radius: 20px;
+  background: hsl(var(--bg-dark) / 0.4);
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: 24px;
   padding: 6px 14px;
   font-size: 12px;
   white-space: nowrap;
-  transition: all 0.2s;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
 }
+
 .portfolio-recipient-capsule:hover {
-  border-color: hsl(var(--accent-purple) / 0.5);
-  box-shadow: 0 0 10px hsl(var(--accent-purple) / 0.1);
-  transform: translateY(-1px);
+  transform: scale(1.05) translateY(-1px);
+  background: hsl(var(--bg-dark) / 0.6);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
 }
+
+.portfolio-recipient-capsule.public-capsule:hover {
+  border-color: hsl(var(--accent-cyan));
+  box-shadow: 0 0 12px hsl(var(--accent-cyan) / 0.2), 0 4px 15px rgba(0, 0, 0, 0.25);
+}
+
+.portfolio-recipient-capsule.private-capsule:hover {
+  border-color: hsl(var(--accent-purple));
+  box-shadow: 0 0 12px hsl(var(--accent-purple) / 0.2), 0 4px 15px rgba(0, 0, 0, 0.25);
+}
+
+.recipient-capsule-icon {
+  font-size: 11px;
+}
+
 .recipient-capsule-name {
   font-weight: 600;
-  color: hsl(var(--text-primary));
+  color: #fff;
 }
+
+.recipient-capsule-ticker {
+  background: hsl(var(--accent-cyan) / 0.15);
+  color: hsl(var(--accent-cyan));
+  border: 1px solid hsl(var(--accent-cyan) / 0.3);
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
 .recipient-capsule-amount {
   font-weight: 700;
   color: hsl(var(--accent-green));
@@ -1050,24 +1079,28 @@ body {
   background: hsl(var(--bg-glass));
   border: 1px solid hsl(var(--border-glass));
   border-radius: 12px;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
 .feed-card.gov-card {
   border-left: 4px solid hsl(var(--accent-blue));
 }
+
 .feed-card.gov-card:hover {
-  border-color: hsl(var(--accent-blue) / 0.5);
-  box-shadow: 0 0 16px hsl(var(--accent-blue) / 0.12);
-  transform: translateY(-2px);
+  border-color: hsl(var(--accent-blue) / 0.4);
+  box-shadow: 0 0 20px hsl(var(--accent-blue) / 0.18), inset 0 0 12px hsl(var(--accent-blue) / 0.05);
+  transform: translateX(4px) translateY(-2px) scale(1.005);
 }
+
 .feed-card.private-card {
   border-left: 4px solid hsl(var(--accent-green));
 }
+
 .feed-card.private-card:hover {
-  border-color: hsl(var(--accent-green) / 0.5);
-  box-shadow: 0 0 16px hsl(var(--accent-green) / 0.12);
-  transform: translateY(-2px);
+  border-color: hsl(var(--accent-green) / 0.4);
+  box-shadow: 0 0 20px hsl(var(--accent-green) / 0.18), inset 0 0 12px hsl(var(--accent-green) / 0.05);
+  transform: translateX(4px) translateY(-2px) scale(1.005);
 }
 .feed-card-header {
   display: flex;
@@ -1134,6 +1167,21 @@ body {
   border-radius: 4px;
   padding: 2px 6px;
   font-weight: 500;
+}
+
+.feed-card-badge.ai-highlight-badge {
+  background: hsl(var(--accent-purple) / 0.12);
+  border-color: hsl(var(--accent-purple) / 0.4);
+  color: hsl(var(--accent-purple));
+  text-shadow: 0 0 4px hsl(var(--accent-purple) / 0.3);
+  box-shadow: 0 0 8px hsl(var(--accent-purple) / 0.15);
+  font-weight: 700;
+  animation: aiBadgePulse 2s infinite alternate;
+}
+
+@keyframes aiBadgePulse {
+  from { box-shadow: 0 0 4px hsl(var(--accent-purple) / 0.1); }
+  to { box-shadow: 0 0 10px hsl(var(--accent-purple) / 0.3); }
 }
 .feed-card-date {
   margin-left: auto;
@@ -1478,67 +1526,106 @@ body {
   justify-content: space-between;
   align-items: center;
   gap: 24px;
-  padding: 14px 24px;
+  padding: 18px 24px;
   background: hsl(var(--bg-glass));
   border: 1px solid hsl(var(--border-glass));
   border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.5s ease;
+}
+
+/* Ambient glows based on market status */
+.market-status-bar.status-open {
+  background: radial-gradient(circle at 10% 50%, hsl(var(--accent-green) / 0.04) 0%, hsl(var(--bg-glass)) 70%);
+  border-color: hsl(var(--accent-green) / 0.2);
+}
+
+.market-status-bar.status-pre_market {
+  background: radial-gradient(circle at 10% 50%, hsl(var(--accent-gold) / 0.04) 0%, hsl(var(--bg-glass)) 70%);
+  border-color: hsl(var(--accent-gold) / 0.2);
+}
+
+.market-status-bar.status-after_hours {
+  background: radial-gradient(circle at 10% 50%, hsl(var(--accent-cyan) / 0.04) 0%, hsl(var(--bg-glass)) 70%);
+  border-color: hsl(var(--accent-cyan) / 0.2);
+}
+
+.market-status-bar.status-closed {
+  background: radial-gradient(circle at 10% 50%, hsl(var(--text-muted) / 0.03) 0%, hsl(var(--bg-glass)) 70%);
+  border-color: hsl(var(--border-glass));
 }
 
 .market-status-time-group {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .market-status-details {
   font-size: 12px;
   color: hsl(var(--text-muted));
-  margin-top: 2px;
 }
 
 .market-date-string {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: hsl(var(--text-primary));
+  letter-spacing: -0.2px;
 }
 
 .market-status-badge-container {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
 }
 
 .market-status-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   display: inline-block;
   position: relative;
 }
 
+/* Pulsing radar ring */
+.market-status-dot::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  opacity: 0;
+  animation: radarPulse 2s infinite linear;
+}
+
 .market-status-dot.open {
   background-color: hsl(var(--accent-green));
+  color: hsl(var(--accent-green));
   box-shadow: 0 0 8px hsl(var(--accent-green));
-  animation: marketPulseGreen 1.5s infinite alternate;
 }
 
 .market-status-dot.pre_market {
   background-color: hsl(var(--accent-gold));
+  color: hsl(var(--accent-gold));
   box-shadow: 0 0 8px hsl(var(--accent-gold));
-  animation: marketPulseGold 1.5s infinite alternate;
 }
 
 .market-status-dot.after_hours {
   background-color: hsl(var(--accent-cyan));
+  color: hsl(var(--accent-cyan));
   box-shadow: 0 0 8px hsl(var(--accent-cyan));
-  animation: marketPulseCyan 1.5s infinite alternate;
 }
 
 .market-status-dot.closed {
   background-color: hsl(var(--text-muted));
+  color: hsl(var(--text-muted));
 }
 
 .market-status-label {
@@ -1554,40 +1641,49 @@ body {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 0;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
-.market-index-item {
+/* Premium Index Cards */
+.market-index-card {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 16px;
-  border-left: 1px solid hsl(var(--border-light));
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  border-radius: 6px;
+  gap: 12px;
+  padding: 8px 16px;
+  background: hsl(var(--bg-dark) / 0.3);
+  border: 1px solid hsl(var(--border-light));
+  border-radius: 8px;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.market-index-item:first-child {
-  border-left: none;
+.market-index-card:hover {
+  background: hsl(var(--bg-dark) / 0.5);
+  border-color: hsl(var(--accent-cyan) / 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .market-index-name {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 700;
   color: hsl(var(--text-muted));
   text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .market-index-price {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: hsl(var(--text-primary));
 }
 
 .market-index-change {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .market-index-change.positive {
@@ -1598,32 +1694,32 @@ body {
   color: hsl(var(--accent-red));
 }
 
-/* Tick Flashing Animations */
-.market-index-item.flash-up {
-  background: hsl(var(--accent-green) / 0.15) !important;
-  border-color: hsl(var(--accent-green) / 0.3) !important;
-  transform: scale(1.02);
+.trend-arrow {
+  font-size: 9px;
 }
 
-.market-index-item.flash-down {
-  background: hsl(var(--accent-red) / 0.15) !important;
-  border-color: hsl(var(--accent-red) / 0.3) !important;
-  transform: scale(1.02);
+/* Tick Flashing Animations for Cards */
+.market-index-card.flash-up {
+  background: hsl(var(--accent-green) / 0.12) !important;
+  border-color: hsl(var(--accent-green) / 0.4) !important;
+  box-shadow: 0 0 10px hsl(var(--accent-green) / 0.15) !important;
 }
 
-@keyframes marketPulseGreen {
-  from { opacity: 0.5; box-shadow: 0 0 2px hsl(var(--accent-green) / 0.4); }
-  to { opacity: 1; box-shadow: 0 0 10px hsl(var(--accent-green)); }
+.market-index-card.flash-down {
+  background: hsl(var(--accent-red) / 0.12) !important;
+  border-color: hsl(var(--accent-red) / 0.4) !important;
+  box-shadow: 0 0 10px hsl(var(--accent-red) / 0.15) !important;
 }
 
-@keyframes marketPulseGold {
-  from { opacity: 0.5; box-shadow: 0 0 2px hsl(var(--accent-gold) / 0.4); }
-  to { opacity: 1; box-shadow: 0 0 10px hsl(var(--accent-gold)); }
-}
-
-@keyframes marketPulseCyan {
-  from { opacity: 0.5; box-shadow: 0 0 2px hsl(var(--accent-cyan) / 0.4); }
-  to { opacity: 1; box-shadow: 0 0 10px hsl(var(--accent-cyan)); }
+@keyframes radarPulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
 }
 
 @media (max-width: 900px) {

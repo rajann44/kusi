@@ -983,7 +983,7 @@ export default function App() {
           <div>
             {/* Market Status & Indices Bar */}
             {marketData && (
-              <div className="glass-panel market-status-bar" style={{ marginBottom: '24px' }}>
+              <div className={`glass-panel market-status-bar status-${marketData.status.toLowerCase()}`} style={{ marginBottom: '24px' }}>
                 {/* Global SVG Definitions for Sparkline Gradients */}
                 <svg style={{ position: 'absolute', width: 0, height: 0 }}>
                   <defs>
@@ -1015,7 +1015,7 @@ export default function App() {
                     const changeSymbol = isPositive ? '+' : '';
                     const flash = tickFlashes[idx.symbol];
                     return (
-                      <div key={idx.symbol} className={`market-index-item ${flash ? `flash-${flash}` : ''}`}>
+                      <div key={idx.symbol} className={`market-index-card ${flash ? `flash-${flash}` : ''}`}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <span className="market-index-name" style={{ lineHeight: 1 }}>{idx.name}</span>
                           <span className="market-index-price" style={{ lineHeight: 1 }}>
@@ -1023,8 +1023,9 @@ export default function App() {
                           </span>
                         </div>
                         {renderSparkline(idx.history, isPositive)}
-                        <span className={`market-index-change ${isPositive ? 'positive' : 'negative'}`} style={{ alignSelf: 'center', minWidth: '45px', textAlign: 'right' }}>
-                          {changeSymbol}{idx.percentChange.toFixed(2)}%
+                        <span className={`market-index-change ${isPositive ? 'positive' : 'negative'}`} style={{ alignSelf: 'center', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <span className="trend-arrow">{isPositive ? '▲' : '▼'}</span>
+                          <span>{changeSymbol}{idx.percentChange.toFixed(2)}%</span>
                         </span>
                       </div>
                     );
@@ -1107,10 +1108,12 @@ export default function App() {
                     {sortedRecipients.map(([name, amount], idx) => {
                       const amountStr = formatAmount(amount);
                       const meta = recipientMetadata[name];
+                      const isPublic = meta && meta.is_public;
                       return (
-                        <div key={`c1-${name}-${idx}`} className="portfolio-recipient-capsule">
+                        <div key={`c1-${name}-${idx}`} className={`portfolio-recipient-capsule ${isPublic ? 'public-capsule' : 'private-capsule'}`}>
+                          <span className="recipient-capsule-icon">{isPublic ? '📈' : '🏢'}</span>
                           <span className="recipient-capsule-name">{name}</span>
-                          {meta && meta.is_public && (
+                          {isPublic && (
                             <span className="recipient-capsule-ticker">{meta.ticker}</span>
                           )}
                           <span className="recipient-capsule-amount">{amountStr}</span>
@@ -1121,10 +1124,12 @@ export default function App() {
                     {sortedRecipients.map(([name, amount], idx) => {
                       const amountStr = formatAmount(amount);
                       const meta = recipientMetadata[name];
+                      const isPublic = meta && meta.is_public;
                       return (
-                        <div key={`c2-${name}-${idx}`} className="portfolio-recipient-capsule">
+                        <div key={`c2-${name}-${idx}`} className={`portfolio-recipient-capsule ${isPublic ? 'public-capsule' : 'private-capsule'}`}>
+                          <span className="recipient-capsule-icon">{isPublic ? '📈' : '🏢'}</span>
                           <span className="recipient-capsule-name">{name}</span>
-                          {meta && meta.is_public && (
+                          {isPublic && (
                             <span className="recipient-capsule-ticker">{meta.ticker}</span>
                           )}
                           <span className="recipient-capsule-amount">{amountStr}</span>
@@ -1174,9 +1179,12 @@ export default function App() {
                             {item.title}
                           </div>
 
-                          <div className="feed-card-footer">
+                           <div className="feed-card-footer">
                             {item.sector && <span className="feed-card-badge">{item.sector}</span>}
                             <span className="feed-card-badge">{item.source}</span>
+                            {item.summary_bullets && item.summary_bullets.length > 0 && (
+                              <span className="feed-card-badge ai-highlight-badge">✨ Insights Ready</span>
+                            )}
                             <span className="feed-card-date">⏱️ {new Date(item.published_at).toLocaleDateString()}</span>
                           </div>
                         </div>
@@ -1223,9 +1231,12 @@ export default function App() {
                             {item.title}
                           </div>
 
-                          <div className="feed-card-footer">
+                           <div className="feed-card-footer">
                             {item.sector && <span className="feed-card-badge">{item.sector}</span>}
                             <span className="feed-card-badge">{item.source}</span>
+                            {item.summary_bullets && item.summary_bullets.length > 0 && (
+                              <span className="feed-card-badge ai-highlight-badge">✨ Insights Ready</span>
+                            )}
                             <span className="feed-card-date">⏱️ {new Date(item.published_at).toLocaleDateString()}</span>
                           </div>
                         </div>
@@ -1591,6 +1602,9 @@ export default function App() {
                         <div className="feed-card-footer">
                           {item.sector && <span className="feed-card-badge">{item.sector}</span>}
                           <span className="feed-card-badge">{item.source}</span>
+                          {item.summary_bullets && item.summary_bullets.length > 0 && (
+                            <span className="feed-card-badge ai-highlight-badge">✨ Insights Ready</span>
+                          )}
                           <span className="feed-card-date">⏱️ {new Date(item.published_at).toLocaleDateString()}</span>
                         </div>
                       </div>
