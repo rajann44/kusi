@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import MarketBar from './components/MarketBar';
+import DetailModal from './components/DetailModal';
+import AnalyticsChart from './components/AnalyticsChart';
 
-const API_BASE = 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -18,15 +21,7 @@ export default function App() {
     privateInvestmentsCount: 0,
     privateInvestmentsFunding: 0
   });
-  const [settings, setSettings] = useState({
-    gemini_api_key: '',
-    finnhub_api_key: '',
-    discord_webhook_url: '',
-    telegram_bot_token: '',
-    telegram_chat_id: '',
-    min_investment_amount_usd: '0',
-    polling_interval_minutes: '2'
-  });
+
   
   const [toast, setToast] = useState(null);
   const [isPolling, setIsPolling] = useState(false);
@@ -37,14 +32,9 @@ export default function App() {
   // Show status indicator
   const [isLive, setIsLive] = useState(false);
 
-  // Modal and Sandbox States
+  // Modal and details states
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [isGeneratingBullets, setIsGeneratingBullets] = useState(false);
-  const [sandboxTitle, setSandboxTitle] = useState('');
-  const [sandboxDesc, setSandboxDesc] = useState('');
-  const [sandboxResult, setSandboxResult] = useState(null);
-  const [isSandboxLoading, setIsSandboxLoading] = useState(false);
-  const [sandboxError, setSandboxError] = useState(null);
 
   // Server-side search, filtering & pagination states for Logs tab
   const [paginatedNews, setPaginatedNews] = useState([]);
@@ -61,7 +51,6 @@ export default function App() {
 
   // Quarterly Analytics Trend States
   const [trends, setTrends] = useState([]);
-  const [hoveredTrendPoint, setHoveredTrendPoint] = useState(null); // { quarter, govAmount, govCount, privateAmount, privateCount, x, y }
 
   // US Market hours status and indices states
   const [marketData, setMarketData] = useState(null);
@@ -134,42 +123,7 @@ export default function App() {
     );
   };
 
-  // Helper to render a beautiful micro sparkline SVG for index trends
-  const renderSparkline = (prices, isPositive) => {
-    if (!prices || prices.length < 2) return null;
-    const min = Math.min(...prices);
-    const max = Math.max(...prices);
-    const range = max - min === 0 ? 1 : max - min;
-    const width = 60;
-    const height = 16;
-    const points = prices.map((price, idx) => {
-      const x = (idx / (prices.length - 1)) * width;
-      const y = height - ((price - min) / range) * height;
-      return `${x},${y}`;
-    }).join(' ');
 
-    const strokeColor = isPositive ? 'hsl(var(--accent-green))' : 'hsl(var(--accent-red))';
-    const fillGradient = isPositive ? 'url(#greenSparklineGrad)' : 'url(#redSparklineGrad)';
-
-    const firstPoint = `0,${height}`;
-    const lastPoint = `${width},${height}`;
-    const areaPoints = `${firstPoint} ${points} ${lastPoint} Z`;
-
-    return (
-      <svg width={width} height={height} style={{ overflow: 'visible', margin: '0 4px 0 8px', flexShrink: 0 }}>
-        <polyline
-          fill="none"
-          stroke={strokeColor}
-          strokeWidth="1.5"
-          points={points}
-        />
-        <polygon
-          fill={fillGradient}
-          points={areaPoints}
-        />
-      </svg>
-    );
-  };
 
   const fetchMarketStatus = async () => {
     try {
@@ -275,7 +229,6 @@ export default function App() {
   useEffect(() => {
     fetchNews();
     fetchStats();
-    fetchSettings();
     fetchTrends();
     fetchMarketStatus();
 
@@ -472,35 +425,6 @@ export default function App() {
     }
   };
 
-  const fetchSettings = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/settings`);
-      if (res.ok) {
-        const data = await res.json();
-        setSettings(data);
-      }
-    } catch (err) {
-      console.error('Error fetching settings:', err);
-    }
-  };
-
-  const handleSaveSettings = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await fetch(`${API_BASE}/api/settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings)
-      });
-      if (res.ok) {
-        showToast('Settings saved and applied successfully!');
-      } else {
-        showToast('Failed to save settings.', 'error');
-      }
-    } catch (err) {
-      showToast('Error connecting to backend.', 'error');
-    }
-  };
 
   const handleManualPoll = async () => {
     setIsPolling(true);
@@ -520,24 +444,6 @@ export default function App() {
       showToast('Error connecting to backend.', 'error');
     } finally {
       setTimeout(() => setIsPolling(false), 2000);
-    }
-  };
-
-  const handleSendTestNotification = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/test-notification`, { method: 'POST' });
-      if (res.ok) {
-        showToast('Test notification dispatched!');
-        // Refresh feed and stats to show the mock alert in the UI
-        setTimeout(() => {
-          fetchNews();
-          fetchStats();
-        }, 1500);
-      } else {
-        showToast('Failed to send test notification.', 'error');
-      }
-    } catch (err) {
-      showToast('Error connecting to backend.', 'error');
     }
   };
 
@@ -602,315 +508,6 @@ export default function App() {
     .sort((a, b) => b[1] - a[1])
     .filter(([_, amount]) => amount > 0)
     .slice(0, 15);
-
-  const handleSandboxClassify = async (e) => {
-    e.preventDefault();
-    if (!sandboxTitle.trim()) {
-      showToast('Title is required for sandbox testing.', 'error');
-      return;
-    }
-    setIsSandboxLoading(true);
-    setSandboxResult(null);
-    setSandboxError(null);
-    try {
-      const res = await fetch(`${API_BASE}/api/sandbox-classify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: sandboxTitle, description: sandboxDesc })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSandboxResult(data);
-        showToast('AI Classification Complete!');
-      } else {
-        const errData = await res.json();
-        setSandboxError(errData.error || 'Failed to classify article.');
-        showToast(errData.error || 'Failed to classify article.', 'error');
-      }
-    } catch (err) {
-      setSandboxError('Error connecting to backend server.');
-      showToast('Error connecting to backend.', 'error');
-    } finally {
-      setIsSandboxLoading(false);
-    }
-  };
-
-  const renderDealFlow = (alert) => {
-    const funder = alert.source_or_funder || 'Funder';
-    const recipients = alert.recipients || [];
-    const amountVal = alert.investment_amount_usd;
-    const amountStr = amountVal > 0 
-      ? amountVal >= 1e9 
-        ? `$${(amountVal / 1e9).toFixed(2)}B` 
-        : `$${(amountVal / 1e6).toFixed(1)}M`
-      : 'Undisclosed';
-
-    if (recipients.length === 0) {
-      return (
-        <div className="deal-flow-fallback">
-          <strong>{funder}</strong> ➔ <span>Undisclosed Recipients</span>
-        </div>
-      );
-    }
-
-    const itemHeight = 60;
-    const padding = 20;
-    const totalHeight = Math.max(160, recipients.length * itemHeight);
-    const svgWidth = 560;
-
-    const funderX = 10;
-    const funderY = totalHeight / 2 - 25;
-    const funderWidth = 140;
-    const funderHeight = 50;
-
-    const recX = 390;
-    const recWidth = 160;
-    const recHeight = 40;
-
-    const funderOutX = funderX + funderWidth;
-    const funderOutY = totalHeight / 2;
-
-    const isGov = alert.funding_type === 'government';
-    const strokeFunder = isGov ? 'hsl(var(--accent-blue))' : 'hsl(var(--accent-cyan))';
-    const strokeRec = isGov ? 'hsl(var(--accent-blue))' : 'hsl(var(--accent-purple))';
-    const strokeAmount = isGov ? 'hsl(var(--accent-gold))' : 'hsl(var(--accent-green))';
-    const gradStart = isGov ? 'hsl(var(--accent-gold))' : 'hsl(var(--accent-cyan))';
-    const gradEnd = isGov ? 'hsl(var(--accent-blue))' : 'hsl(var(--accent-purple))';
-
-    return (
-      <svg className="deal-flow-svg" width="100%" height={totalHeight} viewBox={`0 0 ${svgWidth} ${totalHeight}`} style={{ overflow: 'visible' }}>
-        <defs>
-          <linearGradient id="flow-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor={gradStart} />
-            <stop offset="100%" stopColor={gradEnd} />
-          </linearGradient>
-          <filter id="glow-effect" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
-        </defs>
-
-        {recipients.map((rec, idx) => {
-          const recInX = recX;
-          const recInY = idx * itemHeight + padding + recHeight / 2;
-          const pathD = `M ${funderOutX} ${funderOutY} C ${(funderOutX + recInX) / 2} ${funderOutY}, ${(funderOutX + recInX) / 2} ${recInY}, ${recInX} ${recInY}`;
-          const isObj = typeof rec === 'object' && rec !== null;
-          const isPublic = isObj && (rec.is_public === true || rec.is_public === 'true');
-          
-          return (
-            <g key={idx}>
-              <path 
-                d={pathD} 
-                fill="none" 
-                stroke="hsl(var(--border-glass))" 
-                strokeWidth="2" 
-              />
-              <path 
-                d={pathD} 
-                fill="none" 
-                stroke="url(#flow-gradient)" 
-                strokeWidth="2.5" 
-                className={`animated-flow-line ${isPublic ? 'flow-fast' : ''}`}
-              />
-            </g>
-          );
-        })}
-
-        <g className="flow-node funder-node">
-          <rect 
-            x={funderX} 
-            y={funderY} 
-            width={funderWidth} 
-            height={funderHeight} 
-            rx="8" 
-            fill="hsl(var(--bg-panel))" 
-            stroke={strokeFunder} 
-            strokeWidth="1.5"
-          />
-          <text 
-            x={funderX + funderWidth / 2} 
-            y={funderY + 22} 
-            fill="#fff" 
-            fontSize="12" 
-            fontWeight="bold" 
-            textAnchor="middle"
-          >
-            {funder.length > 20 ? funder.slice(0, 18) + '...' : funder}
-          </text>
-          <text 
-            x={funderX + funderWidth / 2} 
-            y={funderY + 38} 
-            fill="hsl(var(--text-muted))" 
-            fontSize="9" 
-            textAnchor="middle"
-          >
-            CAPITAL PROVIDER
-          </text>
-        </g>
-
-        <g className="flow-amount-badge">
-          <rect 
-            x={funderOutX + 15} 
-            y={funderOutY - 12} 
-            width={85} 
-            height={24} 
-            rx="12" 
-            fill="hsl(var(--bg-panel))" 
-            stroke={strokeAmount} 
-            strokeWidth="1.5"
-          />
-          <text 
-            x={funderOutX + 57.5} 
-            y={funderOutY + 4} 
-            fill={strokeAmount} 
-            fontSize="10" 
-            fontWeight="bold" 
-            textAnchor="middle"
-          >
-            {amountStr}
-          </text>
-        </g>
-
-        {recipients.map((rec, idx) => {
-          const rY = idx * itemHeight + padding;
-          const isObj = typeof rec === 'object' && rec !== null;
-          const name = isObj ? rec.name : rec;
-          const isPublic = isObj && (rec.is_public === true || rec.is_public === 'true');
-          const ticker = isObj ? rec.ticker : null;
-          const exchange = isObj ? rec.exchange : null;
-
-          return (
-            <g key={idx} className="flow-node recipient-node">
-              <rect 
-                x={recX} 
-                y={rY} 
-                width={recWidth} 
-                height={recHeight} 
-                rx="6" 
-                fill="hsl(var(--bg-panel))" 
-                stroke={isPublic ? 'hsl(var(--accent-gold))' : strokeRec} 
-                strokeWidth={isPublic ? 2 : 1.5}
-                className={isPublic ? 'public-node-rect' : ''}
-              />
-              {isPublic && ticker ? (
-                <>
-                  <text 
-                    x={recX + recWidth / 2} 
-                    y={rY + 18} 
-                    fill="#fff" 
-                    fontSize="11" 
-                    fontWeight="700" 
-                    textAnchor="middle"
-                  >
-                    {name.length > 20 ? name.slice(0, 18) + '...' : name}
-                  </text>
-                  <text 
-                    x={recX + recWidth / 2} 
-                    y={rY + 30} 
-                    fill="hsl(var(--accent-gold))" 
-                    fontSize="9" 
-                    fontWeight="bold" 
-                    textAnchor="middle"
-                  >
-                    📈 {exchange ? `${exchange}: ` : ''}{ticker}
-                  </text>
-                </>
-              ) : (
-                <text 
-                  x={recX + recWidth / 2} 
-                  y={rY + 24} 
-                  fill="#fff" 
-                  fontSize="11" 
-                  fontWeight="600" 
-                  textAnchor="middle"
-                >
-                  {name.length > 22 ? name.slice(0, 20) + '...' : name}
-                </text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
-    );
-  };
-
-  // SVG Quarterly Trend Chart math & dimensions
-  const paddingLeft = 55;
-  const paddingRight = 15;
-  const paddingTop = 20;
-  const paddingBottom = 30;
-  const chartWidth = 500 - paddingLeft - paddingRight; // 430
-  const chartHeight = 240 - paddingTop - paddingBottom; // 190
-  const gridLines = [0, 0.25, 0.5, 0.75, 1];
-
-  const maxTrendAmount = trends.length > 0 
-    ? Math.max(...trends.map(t => Math.max(t.governmentAmount || 0, t.privateAmount || 0)), 1e9) 
-    : 1e9;
-
-  const pointsGov = trends.map((item, idx) => {
-    const x = trends.length > 1 
-      ? paddingLeft + (idx / (trends.length - 1)) * chartWidth 
-      : paddingLeft + chartWidth / 2;
-    const y = paddingTop + chartHeight - ((item.governmentAmount || 0) / maxTrendAmount) * chartHeight;
-    return { x, y, item };
-  });
-
-  const pointsPrivate = trends.map((item, idx) => {
-    const x = trends.length > 1 
-      ? paddingLeft + (idx / (trends.length - 1)) * chartWidth 
-      : paddingLeft + chartWidth / 2;
-    const y = paddingTop + chartHeight - ((item.privateAmount || 0) / maxTrendAmount) * chartHeight;
-    return { x, y, item };
-  });
-
-  const linePathGov = pointsGov.length > 0 ? pointsGov.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') : '';
-  const areaPathGov = pointsGov.length > 0 ? `${linePathGov} L ${pointsGov[pointsGov.length - 1].x} ${paddingTop + chartHeight} L ${pointsGov[0].x} ${paddingTop + chartHeight} Z` : '';
-
-  const linePathPrivate = pointsPrivate.length > 0 ? pointsPrivate.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') : '';
-  const areaPathPrivate = pointsPrivate.length > 0 ? `${linePathPrivate} L ${pointsPrivate[pointsPrivate.length - 1].x} ${paddingTop + chartHeight} L ${pointsPrivate[0].x} ${paddingTop + chartHeight} Z` : '';
-
-  const handleChartMouseMove = (e) => {
-    if (!trends || trends.length === 0) return;
-    const svg = e.currentTarget;
-    const rect = svg.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    
-    // Translate mouse position to SVG coordinates (0 to 500, 0 to 240)
-    const svgX = (mouseX / rect.width) * 500;
-    
-    let closestIdx = 0;
-    let minDiff = Infinity;
-    
-    trends.forEach((item, idx) => {
-      const x = trends.length > 1 
-        ? paddingLeft + (idx / (trends.length - 1)) * chartWidth 
-        : paddingLeft + chartWidth / 2;
-      const diff = Math.abs(x - svgX);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestIdx = idx;
-      }
-    });
-
-    const closestItem = trends[closestIdx];
-    const x = trends.length > 1 
-      ? paddingLeft + (closestIdx / (trends.length - 1)) * chartWidth 
-      : paddingLeft + chartWidth / 2;
-    
-    setHoveredTrendPoint({
-      item: closestItem,
-      x: e.clientX,
-      y: e.clientY,
-      svgX: x,
-      idx: closestIdx
-    });
-  };
-
-  const handleChartMouseLeave = () => {
-    setHoveredTrendPoint(null);
-  };
-
   return (
     <div className="app-container">
       {/* Toast popup */}
@@ -940,12 +537,6 @@ export default function App() {
           >
             🔍 Search & Analytics
           </li>
-          <li 
-            className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
-            onClick={() => setActiveTab('settings')}
-          >
-            ⚙️ Settings & Sandbox
-          </li>
         </ul>
 
         {/* Minimal connection status */}
@@ -956,6 +547,16 @@ export default function App() {
           </div>
           <div className="sidebar-stat-badge">
             Tracked: <strong>{stats.totalInvestments}</strong> deals
+          </div>
+          <div className="desktop-alerts-toggle-container" style={{ marginTop: '12px', borderTop: '1px dashed hsl(var(--border-light))', paddingTop: '12px' }}>
+            <button
+              type="button"
+              className="glass-btn"
+              onClick={requestNotificationPermission}
+              style={{ width: '100%', fontSize: '11px', padding: '6px 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+            >
+              {browserNotificationsEnabled ? '🔔 Alerts Enabled' : '🔕 Enable Alerts'}
+            </button>
           </div>
         </div>
       </div>
@@ -969,12 +570,10 @@ export default function App() {
             <h1>
               {activeTab === 'dashboard' && 'Investment Stream'}
               {activeTab === 'logs' && 'Search & Analytics'}
-              {activeTab === 'settings' && 'Settings & Sandbox'}
             </h1>
             <p>
               {activeTab === 'dashboard' && 'Real-time tracking of funding rounds, research grants, and corporate contracts'}
               {activeTab === 'logs' && 'Browse, query, and analyze historical government grants and private venture deals'}
-              {activeTab === 'settings' && 'Configure API integrations, webhook channels, and test the classification model'}
             </p>
           </div>
 
@@ -1002,57 +601,7 @@ export default function App() {
         {activeTab === 'dashboard' && (
           <div>
             {/* Market Status & Indices Bar */}
-            {marketData && (
-              <div className={`glass-panel market-status-bar status-${marketData.status.toLowerCase()}`} style={{ marginBottom: '24px' }}>
-                {/* Global SVG Definitions for Sparkline Gradients */}
-                <svg style={{ position: 'absolute', width: 0, height: 0 }}>
-                  <defs>
-                    <linearGradient id="greenSparklineGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(var(--accent-green))" stopOpacity="0.25" />
-                      <stop offset="100%" stopColor="hsl(var(--accent-green))" stopOpacity="0" />
-                    </linearGradient>
-                    <linearGradient id="redSparklineGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(var(--accent-red))" stopOpacity="0.25" />
-                      <stop offset="100%" stopColor="hsl(var(--accent-red))" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-
-                <div className="market-status-time-group">
-                  <div className="market-date-string">{marketData.dateEstString}</div>
-                  <div className="market-status-badge-container">
-                    <span className={`market-status-dot ${marketData.status.toLowerCase()}`} />
-                    <span className="market-status-label">{marketData.label}</span>
-                    <span className="market-time-est">({marketData.timeEstString})</span>
-                  </div>
-                  {marketData.detailMessage && (
-                    <div className="market-status-details">{marketData.detailMessage}</div>
-                  )}
-                </div>
-                <div className="market-indices-group">
-                  {marketData.indices.map((idx) => {
-                    const isPositive = idx.change >= 0;
-                    const changeSymbol = isPositive ? '+' : '';
-                    const flash = tickFlashes[idx.symbol];
-                    return (
-                      <div key={idx.symbol} className={`market-index-card ${flash ? `flash-${flash}` : ''}`}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                          <span className="market-index-name" style={{ lineHeight: 1 }}>{idx.name}</span>
-                          <span className="market-index-price" style={{ lineHeight: 1 }}>
-                            ${idx.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                        </div>
-                        {renderSparkline(idx.history, isPositive)}
-                        <span className={`market-index-change ${isPositive ? 'positive' : 'negative'}`} style={{ alignSelf: 'center', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          <span className="trend-arrow">{isPositive ? '▲' : '▼'}</span>
-                          <span>{changeSymbol}{idx.percentChange.toFixed(2)}%</span>
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            <MarketBar marketData={marketData} tickFlashes={tickFlashes} />
 
             {/* Stats Cards */}
             <div className="stats-grid">
@@ -1689,552 +1238,18 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="trend-chart-container" style={{ position: 'relative' }}>
-                  {trends.length === 0 ? (
-                    <div style={{ height: '240px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'hsl(var(--text-muted))' }}>
-                      No trend data available.
-                    </div>
-                  ) : (
-                    <svg 
-                      width="100%" 
-                      height="240" 
-                      viewBox="0 0 500 240" 
-                      preserveAspectRatio="xMidYMid meet"
-                      onMouseMove={handleChartMouseMove}
-                      onMouseLeave={handleChartMouseLeave}
-                      style={{ overflow: 'visible', cursor: 'crosshair' }}
-                    >
-                      <defs>
-                        {/* Gradients */}
-                        <linearGradient id="govAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="hsl(var(--accent-blue))" stopOpacity="0.2" />
-                          <stop offset="100%" stopColor="hsl(var(--accent-blue))" stopOpacity="0.00" />
-                        </linearGradient>
-                        <linearGradient id="privateAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="hsl(var(--accent-green))" stopOpacity="0.2" />
-                          <stop offset="100%" stopColor="hsl(var(--accent-green))" stopOpacity="0.00" />
-                        </linearGradient>
-                      </defs>
-
-                      {/* Horizontal Gridlines & Y-Axis Labels */}
-                      {gridLines.map((gl, idx) => {
-                        const y = paddingTop + chartHeight - gl * chartHeight;
-                        const val = gl * maxTrendAmount;
-                        const label = val >= 1e9 ? `$${(val / 1e9).toFixed(1)}B` : `$${(val / 1e6).toFixed(0)}M`;
-                        return (
-                          <g key={idx} opacity="0.3">
-                            <line 
-                              x1={paddingLeft} 
-                              y1={y} 
-                              x2={paddingLeft + chartWidth} 
-                              y2={y} 
-                              stroke="hsl(var(--border-light))" 
-                              strokeWidth="1"
-                              strokeDasharray="4 4"
-                            />
-                            <text 
-                              x={paddingLeft - 8} 
-                              y={y + 3} 
-                              fill="hsl(var(--text-muted))" 
-                              fontSize="10" 
-                              textAnchor="end"
-                            >
-                              {label}
-                            </text>
-                          </g>
-                        );
-                      })}
-
-                      {/* X-Axis Labels (Quarters) */}
-                      {trends.map((t, idx) => {
-                        // Render every second quarter label to prevent overcrowding
-                        if (trends.length > 8 && idx % 2 !== 0) return null;
-                        const x = trends.length > 1 
-                          ? paddingLeft + (idx / (trends.length - 1)) * chartWidth 
-                          : paddingLeft + chartWidth / 2;
-                        return (
-                          <text 
-                            key={idx}
-                            x={x} 
-                            y={paddingTop + chartHeight + 18} 
-                            fill="hsl(var(--text-muted))" 
-                            fontSize="9" 
-                            textAnchor="middle"
-                            opacity="0.7"
-                          >
-                            {t.quarter}
-                          </text>
-                        );
-                      })}
-
-                      {/* Gov Area & Line */}
-                      {areaPathGov && (
-                        <path d={areaPathGov} fill="url(#govAreaGrad)" className="trend-area" />
-                      )}
-                      {linePathGov && (
-                        <path 
-                          d={linePathGov} 
-                          fill="none" 
-                          stroke="hsl(var(--accent-blue))" 
-                          strokeWidth="2.5" 
-                          className="trend-line" 
-                        />
-                      )}
-
-                      {/* Private Area & Line */}
-                      {areaPathPrivate && (
-                        <path d={areaPathPrivate} fill="url(#privateAreaGrad)" className="trend-area" />
-                      )}
-                      {linePathPrivate && (
-                        <path 
-                          d={linePathPrivate} 
-                          fill="none" 
-                          stroke="hsl(var(--accent-green))" 
-                          strokeWidth="2.5" 
-                          className="trend-line" 
-                        />
-                      )}
-
-                      {/* Vertical Hover Guideline */}
-                      {hoveredTrendPoint && (
-                        <line 
-                          x1={hoveredTrendPoint.svgX} 
-                          y1={paddingTop} 
-                          x2={hoveredTrendPoint.svgX} 
-                          y2={paddingTop + chartHeight} 
-                          stroke="hsl(var(--accent-cyan))" 
-                          strokeWidth="1.5" 
-                          strokeDasharray="2 2"
-                          opacity="0.8"
-                        />
-                      )}
-
-                      {/* interactive circles for Gov data points */}
-                      {pointsGov.map((p, idx) => {
-                        const isHovered = hoveredTrendPoint && hoveredTrendPoint.idx === idx;
-                        return (
-                          <circle 
-                            key={idx}
-                            cx={p.x}
-                            cy={p.y}
-                            r={isHovered ? 6 : 4}
-                            fill="hsl(var(--bg-panel))"
-                            stroke="hsl(var(--accent-blue))"
-                            strokeWidth={isHovered ? 3 : 2}
-                            className="trend-dot"
-                          />
-                        );
-                      })}
-
-                      {/* interactive circles for Private data points */}
-                      {pointsPrivate.map((p, idx) => {
-                        const isHovered = hoveredTrendPoint && hoveredTrendPoint.idx === idx;
-                        return (
-                          <circle 
-                            key={idx}
-                            cx={p.x}
-                            cy={p.y}
-                            r={isHovered ? 6 : 4}
-                            fill="hsl(var(--bg-panel))"
-                            stroke="hsl(var(--accent-green))"
-                            strokeWidth={isHovered ? 3 : 2}
-                            className="trend-dot"
-                          />
-                        );
-                      })}
-                    </svg>
-                  )}
+                <div className="trend-chart-container">
+                  <AnalyticsChart trends={trends} />
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* SETTINGS TAB */}
-        {activeTab === 'settings' && (
-          <div className="dashboard-grid">
-            {/* Left Column: Settings Form */}
-            <div className="glass-panel">
-              <form onSubmit={handleSaveSettings}>
-                <h3 style={{ marginBottom: '16px', borderBottom: '1px solid hsl(var(--border-light))', paddingBottom: '8px' }}>
-                  🔔 Notifications & Alerts
-                </h3>
-                <div className="form-group" style={{ marginBottom: '24px' }}>
-                  <label>Browser Desktop Notifications</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '8px' }}>
-                    <span className="status-label" style={{ textTransform: 'none', letterSpacing: 'normal', fontSize: '13px' }}>
-                      Status: <strong style={{ color: browserNotificationsEnabled ? 'hsl(var(--accent-green))' : 'hsl(var(--accent-red))' }}>{browserNotificationsEnabled ? 'Active' : 'Disabled'}</strong>
-                    </span>
-                    {!browserNotificationsEnabled && (
-                      <button 
-                        type="button"
-                        className="glass-btn glass-btn-secondary" 
-                        onClick={requestNotificationPermission}
-                        style={{ padding: '8px 16px', fontSize: '13px' }}
-                      >
-                        Enable Desktop Alerts
-                      </button>
-                    )}
-                  </div>
-                  <div className="form-helper" style={{ marginTop: '6px' }}>Receive instant push alerts on your desktop when high-value investments are detected.</div>
-                </div>
-
-                <h3 style={{ marginTop: '24px', marginBottom: '16px', borderBottom: '1px solid hsl(var(--border-light))', paddingBottom: '8px' }}>
-                  🔑 API Keys
-                </h3>
-                
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="gemini_api_key">Gemini AI API Key</label>
-                    <input
-                      type="password"
-                      id="gemini_api_key"
-                      className="glass-input"
-                      placeholder="AIzaSy..."
-                      value={settings.gemini_api_key}
-                      onChange={(e) => setSettings({...settings, gemini_api_key: e.target.value})}
-                    />
-                    <div className="form-helper">Used to evaluate news and pull structured investment fields.</div>
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="finnhub_api_key">Finnhub API Key</label>
-                    <input
-                      type="password"
-                      id="finnhub_api_key"
-                      className="glass-input"
-                      placeholder="c9..."
-                      value={settings.finnhub_api_key}
-                      onChange={(e) => setSettings({...settings, finnhub_api_key: e.target.value})}
-                    />
-                    <div className="form-helper">Used to gather real-time general news from PR wires.</div>
-                  </div>
-                </div>
-
-                <h3 style={{ marginTop: '24px', marginBottom: '16px', borderBottom: '1px solid hsl(var(--border-light))', paddingBottom: '8px' }}>
-                  📢 Webhook Integrations
-                </h3>
-
-                <div className="form-group">
-                  <label htmlFor="discord_webhook_url">Discord Webhook URL</label>
-                  <input
-                    type="password"
-                    id="discord_webhook_url"
-                    className="glass-input"
-                    placeholder="https://discord.com/api/webhooks/..."
-                    value={settings.discord_webhook_url}
-                    onChange={(e) => setSettings({...settings, discord_webhook_url: e.target.value})}
-                  />
-                  <div className="form-helper">Pushes rich, styled card embed alerts to your Discord channel.</div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="telegram_bot_token">Telegram Bot Token</label>
-                    <input
-                      type="password"
-                      id="telegram_bot_token"
-                      className="glass-input"
-                      placeholder="123456789:ABCdefGhI..."
-                      value={settings.telegram_bot_token}
-                      onChange={(e) => setSettings({...settings, telegram_bot_token: e.target.value})}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="telegram_chat_id">Telegram Chat ID / Channel Username</label>
-                    <input
-                      type="text"
-                      id="telegram_chat_id"
-                      className="glass-input"
-                      placeholder="@my_channel or -100123456"
-                      value={settings.telegram_chat_id}
-                      onChange={(e) => setSettings({...settings, telegram_chat_id: e.target.value})}
-                    />
-                  </div>
-                </div>
-
-                <h3 style={{ marginTop: '24px', marginBottom: '16px', borderBottom: '1px solid hsl(var(--border-light))', paddingBottom: '8px' }}>
-                  🎛️ Filter Rules
-                </h3>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="min_investment_amount_usd">Minimum Notification Threshold (USD)</label>
-                    <input
-                      type="number"
-                      id="min_investment_amount_usd"
-                      className="glass-input"
-                      placeholder="e.g. 5000000 (for $5M)"
-                      value={settings.min_investment_amount_usd}
-                      onChange={(e) => setSettings({...settings, min_investment_amount_usd: e.target.value})}
-                    />
-                    <div className="form-helper">Alerts below this amount will log to history but not trigger Discord/Telegram pings (0 to notify all).</div>
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="polling_interval_minutes">News Polling Loop Interval (Minutes)</label>
-                    <input
-                      type="number"
-                      id="polling_interval_minutes"
-                      className="glass-input"
-                      placeholder="2"
-                      step="0.5"
-                      min="1"
-                      value={settings.polling_interval_minutes}
-                      onChange={(e) => setSettings({...settings, polling_interval_minutes: e.target.value})}
-                    />
-                    <div className="form-helper">How frequently the poller looks for new articles.</div>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: '32px', display: 'flex', gap: '16px' }}>
-                  <button type="submit" className="glass-btn">
-                    💾 Save and Restart Poller
-                  </button>
-                  <button type="button" className="glass-btn glass-btn-secondary" onClick={handleSendTestNotification}>
-                    🧪 Send Test Notification
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            {/* Right Column: AI Sandbox & Testing Utilities */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {/* AI Sandbox Classifier Panel */}
-              <div className="glass-panel">
-                <h3 style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>🤖 AI Sandbox Classifier</span>
-                </h3>
-                <p style={{ fontSize: '13px', color: 'hsl(var(--text-secondary))', marginBottom: '16px' }}>
-                  Paste a custom article title and body below to test how Gemini classifies it in real-time.
-                </p>
-
-                <form onSubmit={handleSandboxClassify} className="sandbox-form">
-                  <div className="form-group" style={{ marginBottom: '12px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px' }}>Headline / Title</label>
-                    <input
-                      type="text"
-                      className="glass-input"
-                      placeholder="e.g. Rigetti Computing awarded $100M grant..."
-                      value={sandboxTitle}
-                      onChange={(e) => setSandboxTitle(e.target.value)}
-                      style={{ padding: '8px 12px' }}
-                    />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: '16px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px' }}>Article Summary / Text</label>
-                    <textarea
-                      className="glass-input"
-                      placeholder="Enter snippet or description..."
-                      value={sandboxDesc}
-                      onChange={(e) => setSandboxDesc(e.target.value)}
-                      style={{ minHeight: '80px', resize: 'vertical', padding: '8px 12px' }}
-                    />
-                  </div>
-                  <button 
-                    type="submit" 
-                    className="glass-btn" 
-                    disabled={isSandboxLoading} 
-                    style={{ width: '100%', padding: '10px' }}
-                  >
-                    {isSandboxLoading ? '🤖 Classifying...' : '⚡ Test with Gemini'}
-                  </button>
-                </form>
-
-                {sandboxError && (
-                  <div className="sandbox-error" style={{ marginTop: '16px', color: 'hsl(var(--accent-red))', fontSize: '13px' }}>
-                    ⚠️ {sandboxError}
-                  </div>
-                )}
-
-                {sandboxResult && (
-                  <div className="sandbox-result-panel" style={{ marginTop: '16px', borderTop: '1px solid hsl(var(--border-light))', paddingTop: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: '600' }}>Gemini Classification:</span>
-                      <span className={`badge ${sandboxResult.is_investment ? 'badge-green' : 'badge-red'}`} style={{ textTransform: 'uppercase' }}>
-                        {sandboxResult.is_investment ? '💸 Investment' : '🔇 Noise'}
-                      </span>
-                    </div>
-
-                    {sandboxResult.is_investment ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
-                        <div>
-                          <span style={{ color: 'hsl(var(--text-secondary))' }}>Sector:</span>{' '}
-                          <span className="badge badge-purple">{sandboxResult.sector || 'N/A'}</span>
-                        </div>
-                        <div>
-                          <span style={{ color: 'hsl(var(--text-secondary))' }}>Amount:</span>{' '}
-                          <strong style={{ color: 'hsl(var(--accent-green))' }}>
-                            {sandboxResult.investment_amount_usd > 0 
-                              ? `$${(sandboxResult.investment_amount_usd / 1e6).toFixed(1)}M` 
-                              : 'Undisclosed'}
-                          </strong>
-                        </div>
-                        <div>
-                          <span style={{ color: 'hsl(var(--text-secondary))' }}>Funder:</span>{' '}
-                          <span>{sandboxResult.source_or_funder || 'N/A'}</span>
-                        </div>
-                        <div>
-                          <span style={{ color: 'hsl(var(--text-secondary))' }}>Recipients:</span>{' '}
-                          <span>{renderRecipientsInline(sandboxResult.recipients)}</span>
-                        </div>
-                        {sandboxResult.summary_bullets && sandboxResult.summary_bullets.length > 0 && (
-                          <ul style={{ paddingLeft: '16px', marginTop: '4px', fontSize: '12px', color: 'hsl(var(--text-secondary))' }}>
-                            {sandboxResult.summary_bullets.map((bullet, idx) => (
-                              <li key={idx} style={{ marginBottom: '4px' }}>{bullet}</li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    ) : (
-                      <p style={{ fontSize: '12px', color: 'hsl(var(--text-muted))' }}>
-                        This article was classified as financial noise (does not represent a capital deal, investment or grant).
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Testing Utilities */}
-              <div className="glass-panel">
-                <h3 style={{ marginBottom: '12px' }}>Testing Utilities</h3>
-                <p style={{ fontSize: '13px', color: 'hsl(var(--text-secondary))', marginBottom: '16px' }}>
-                  Dispatch a pre-configured sample grant announcement to test Discord/Telegram connections.
-                </p>
-                <button className="glass-btn glass-btn-secondary" style={{ width: '100%' }} onClick={handleSendTestNotification}>
-                  🚀 Trigger Mock Alert
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
 
       {/* Details Modal */}
-      {selectedAlert && (
-        <div className="modal-overlay" onClick={() => setSelectedAlert(null)}>
-          <div 
-            className="modal-container glass-panel" 
-            style={{
-              borderColor: selectedAlert.funding_type === 'government' ? 'hsl(var(--accent-blue))' : 'hsl(var(--accent-green))',
-              boxShadow: selectedAlert.funding_type === 'government' 
-                ? '0 20px 50px rgba(0, 0, 0, 0.6), var(--glow-blue)' 
-                : '0 20px 50px rgba(0, 0, 0, 0.6), var(--glow-green)'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button className="modal-close-btn" onClick={() => setSelectedAlert(null)}>✕</button>
-            
-            <div className="modal-header-info">
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <span className="badge badge-purple" style={{ textTransform: 'uppercase' }}>{selectedAlert.sector || 'General'}</span>
-                {selectedAlert.funding_type === 'government' ? (
-                  <span className="badge badge-blue">🏛️ Government</span>
-                ) : (
-                  <span className="badge badge-green">💼 Private</span>
-                )}
-              </div>
-              <span className="modal-date">{new Date(selectedAlert.published_at).toLocaleString()}</span>
-            </div>
-
-            <h2 className="modal-title">{selectedAlert.title}</h2>
-            
-            <div className="modal-meta-grid">
-              <div className="meta-box">
-                <span className="meta-label">Capital Transferred</span>
-                <span className="meta-value" style={{ color: selectedAlert.funding_type === 'government' ? 'hsl(var(--accent-gold))' : 'hsl(var(--accent-green))', fontWeight: '700' }}>
-                  {selectedAlert.investment_amount_usd > 0 
-                    ? `$${(selectedAlert.investment_amount_usd).toLocaleString()} USD` 
-                    : 'Undisclosed'}
-                </span>
-              </div>
-              <div className="meta-box">
-                <span className="meta-label">Funder / Source</span>
-                <span className="meta-value">{selectedAlert.source_or_funder || 'Unknown'}</span>
-              </div>
-              <div className="meta-box">
-                <span className="meta-label">Source Feed</span>
-                <span className="meta-value">{selectedAlert.source || 'N/A'}</span>
-              </div>
-            </div>
-
-            {/* Animated Deal Flow Visualization */}
-            <div className="deal-flow-section">
-              <h4>Capital Flow Pipeline</h4>
-              <div className="deal-flow-visualizer">
-                {renderDealFlow(selectedAlert)}
-              </div>
-            </div>
-
-            <div className="modal-body-content">
-              <h4>About the Announcement</h4>
-              <p className="modal-description">{selectedAlert.description}</p>
-              
-              {isGeneratingBullets ? (
-                <div style={{ marginTop: '20px' }} className="bullets-loading-skeleton">
-                  <h4 style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="sparkle-icon">✨</span> Generating Key AI Insights...
-                  </h4>
-                  <ul className="bullet-points skeleton-bullets">
-                    <li className="skeleton-bullet-line"></li>
-                    <li className="skeleton-bullet-line"></li>
-                    <li className="skeleton-bullet-line"></li>
-                  </ul>
-                </div>
-              ) : selectedAlert.summary_bullets && selectedAlert.summary_bullets.length > 0 ? (
-                <div style={{ marginTop: '20px' }}>
-                  <h4 style={{ marginBottom: '10px' }}>Key AI Insights</h4>
-                  <ul className="bullet-points">
-                    {selectedAlert.summary_bullets.map((bullet, idx) => (
-                      <li key={idx}>{bullet}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="modal-footer-action">
-              <a 
-                href={selectedAlert.url} 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="glass-btn"
-                style={{ width: '100%', marginTop: '20px' }}
-              >
-                🔗 Open Original Announcement
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Floating Chart Tooltip */}
-      {hoveredTrendPoint && (
-        <div 
-          className="chart-tooltip" 
-          style={{
-            position: 'fixed',
-            left: `${hoveredTrendPoint.x + 15}px`,
-            top: `${hoveredTrendPoint.y - 10}px`,
-            zIndex: 9999,
-            pointerEvents: 'none'
-          }}
-        >
-          <div className="tooltip-quarter">{hoveredTrendPoint.item.quarter}</div>
-          <div className="tooltip-row">
-            <span className="tooltip-indicator gov-dot"></span>
-            <span className="tooltip-label">Gov Grants:</span>
-            <span className="tooltip-val">{formatAmount(hoveredTrendPoint.item.governmentAmount)}</span>
-            <span className="tooltip-count">({hoveredTrendPoint.item.governmentCount})</span>
-          </div>
-          <div className="tooltip-row">
-            <span className="tooltip-indicator private-dot"></span>
-            <span className="tooltip-label">Private VC:</span>
-            <span className="tooltip-val">{formatAmount(hoveredTrendPoint.item.privateAmount)}</span>
-            <span className="tooltip-count">({hoveredTrendPoint.item.privateCount})</span>
-          </div>
-        </div>
-      )}
+      <DetailModal alert={selectedAlert} onClose={() => setSelectedAlert(null)} isGeneratingBullets={isGeneratingBullets} />
     </div>
   );
 }

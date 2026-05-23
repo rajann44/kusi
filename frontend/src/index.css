@@ -930,9 +930,11 @@ body {
   }
 }
 
-/* Custom styles for Sandbox elements */
-.sandbox-form textarea.glass-input {
-  resize: vertical;
+/* Settings page container */
+.settings-container {
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 /* Dual Column feed grid for focused layout */

@@ -5,8 +5,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { initDatabase, supabase } from './database.js';
 import { runPollingCycle } from './poller.js';
-import { sendDiscordNotification, sendTelegramNotification } from './notifier.js';
 import { classifyNews, generateSummaryBullets } from './gemini.js';
+import { POLLING_INTERVAL_MINUTES } from './config.js';
 
 // Load env variables
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -34,13 +34,8 @@ function broadcastNewInvestment(item) {
 // Fetch settings from database helper
 async function getSettings() {
   const settings = {
-    gemini_api_key: '',
-    finnhub_api_key: '',
-    discord_webhook_url: '',
-    telegram_bot_token: '',
-    telegram_chat_id: '',
-    min_investment_amount_usd: '0',
-    polling_interval_minutes: '2'
+    gemini_api_key: process.env.GEMINI_API_KEY || '',
+    finnhub_api_key: process.env.FINNHUB_API_KEY || ''
   };
 
   try {
@@ -51,7 +46,11 @@ async function getSettings() {
     }
     if (rows) {
       rows.forEach(row => {
-        settings[row.key] = row.value;
+        if (row.key === 'gemini_api_key' && !settings.gemini_api_key) {
+          settings.gemini_api_key = row.value;
+        } else if (row.key === 'finnhub_api_key' && !settings.finnhub_api_key) {
+          settings.finnhub_api_key = row.value;
+        }
       });
     }
   } catch (err) {
@@ -528,66 +527,6 @@ app.post('/api/poll', async (req, res) => {
   }
 });
 
-// REST API: Send a mock/test notification to verify Discord/Telegram webhook credentials
-app.post('/api/test-notification', async (req, res) => {
-  try {
-    const settings = await getSettings();
-    
-    const mockItem = {
-      title: 'U.S. government announces CHIPS Act funding for advanced computing',
-      url: 'https://example.com/test-funding-news',
-      source: 'Mock Test',
-      is_investment: true,
-      investment_amount_usd: 120000000,
-      recipients: [
-        { name: 'TestQuantumCorp', is_public: false },
-        { name: 'FutureSiliconLtd', is_public: true, ticker: 'FSL', exchange: 'NASDAQ' }
-      ],
-      source_or_funder: 'U.S. Department of Commerce',
-      sector: 'Quantum & Semiconductor Foundry',
-      summary_bullets: [
-        'This is a mock notification to verify your connection settings.',
-        'Recipient gets $120 Million for establishing a local chip packaging line.',
-        'If you see this, your notifier configuration works perfectly!'
-      ]
-    };
-
-    if (settings.discord_webhook_url) {
-      await sendDiscordNotification(mockItem, settings.discord_webhook_url);
-    }
-    if (settings.telegram_bot_token && settings.telegram_chat_id) {
-      await sendTelegramNotification(mockItem, settings.telegram_bot_token, settings.telegram_chat_id);
-    }
-
-    // Also push to SSE stream so UI displays the mock event
-    broadcastNewInvestment(mockItem);
-
-    res.json({ message: 'Test notification sent successfully' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// REST API: Custom sandbox classification
-app.post('/api/sandbox-classify', async (req, res) => {
-  try {
-    const { title, description } = req.body;
-    if (!title) {
-      return res.status(400).json({ error: 'Title is required' });
-    }
-    const settings = await getSettings();
-    const apiKey = settings.gemini_api_key;
-    if (!apiKey) {
-      return res.status(400).json({ error: 'Gemini API key is not configured. Please add it in settings.' });
-    }
-    console.log(`Running sandbox classification for: "${title}"`);
-    const result = await classifyNews(title, description, apiKey);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // REST API: Generate summary bullets on-demand
 app.post('/api/news/:id/summarize', async (req, res) => {
   try {
@@ -674,8 +613,7 @@ async function scheduleBackgroundPolling() {
     pollingIntervalHandle = null;
   }
 
-  const settings = await getSettings();
-  const minutes = parseFloat(settings.polling_interval_minutes || '2');
+  const minutes = POLLING_INTERVAL_MINUTES;
   const ms = minutes * 60 * 1000;
 
   console.log(`Scheduling background polling every ${minutes} minutes (${ms}ms)`);

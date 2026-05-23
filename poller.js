@@ -1,10 +1,7 @@
 import xml2js from 'xml2js';
 import { supabase } from './database.js';
 import { classifyNews } from './gemini.js';
-import { sendDiscordNotification, sendTelegramNotification } from './notifier.js';
-
-// SEC EDGAR requires a specific User-Agent format: "Name contact@email.com"
-const SEC_USER_AGENT = 'RajanInvestAlert/1.0 rajan@ticker.app';
+import { MIN_INVESTMENT_AMOUNT_USD, SEC_USER_AGENT } from './config.js';
 
 /**
  * Polls the Finnhub news endpoint.
@@ -170,20 +167,7 @@ export async function runPollingCycle(settings, onNewItemFound) {
         };
 
         // Filter alerts by threshold
-        const minAmount = parseFloat(settings.min_investment_amount_usd || '0');
-        if (fullyClassifiedItem.investment_amount_usd >= minAmount) {
-          // 4. Send External Notifications
-          if (settings.discord_webhook_url) {
-            await sendDiscordNotification(fullyClassifiedItem, settings.discord_webhook_url);
-          }
-          if (settings.telegram_bot_token && settings.telegram_chat_id) {
-            await sendTelegramNotification(
-              fullyClassifiedItem, 
-              settings.telegram_bot_token, 
-              settings.telegram_chat_id
-            );
-          }
-
+        if (fullyClassifiedItem.investment_amount_usd >= MIN_INVESTMENT_AMOUNT_USD) {
           // 5. Notify local SSE clients
           if (onNewItemFound) {
             onNewItemFound(fullyClassifiedItem);
