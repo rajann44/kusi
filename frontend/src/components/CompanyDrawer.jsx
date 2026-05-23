@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { API_BASE } from '../App'; // Need to pass or import API_BASE
+import { useState, useEffect } from 'react';
+import { API_BASE } from '../config';
+
 
 export default function CompanyDrawer({ companyName, isOpen, onClose }) {
   const [history, setHistory] = useState([]);

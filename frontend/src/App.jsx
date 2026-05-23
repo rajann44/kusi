@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import MarketBar from './components/MarketBar';
 import DetailModal from './components/DetailModal';
 import AnalyticsChart from './components/AnalyticsChart';
 import CompanyDrawer from './components/CompanyDrawer';
-
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+import { API_BASE } from './config';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+  const [isSettingsSheetOpen, setIsSettingsSheetOpen] = useState(false);
   const [news, setNews] = useState([]);
   const [stats, setStats] = useState({
     totalInvestments: 0,
@@ -27,9 +28,8 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [isPolling, setIsPolling] = useState(false);
   const [dashboardSector, setDashboardSector] = useState('All');
-  const [filterSector, setFilterSector] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
   const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(false);
+
 
   // Show status indicator
   const [isLive, setIsLive] = useState(false);
@@ -59,6 +59,12 @@ export default function App() {
   // US Market hours status and indices states
   const [marketData, setMarketData] = useState(null);
   const [tickFlashes, setTickFlashes] = useState({});
+
+  const marketDataRef = useRef(marketData);
+  useEffect(() => {
+    marketDataRef.current = marketData;
+  }, [marketData]);
+
 
   // Theme Management
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
@@ -181,10 +187,11 @@ export default function App() {
 
   // US market indices simulation effect for ticking prices when market is active
   useEffect(() => {
-    if (!marketData) return;
-
     const simulator = setInterval(() => {
-      const isMarketClosed = marketData.status === 'CLOSED';
+      const currentMarket = marketDataRef.current;
+      if (!currentMarket) return;
+
+      const isMarketClosed = currentMarket.status === 'CLOSED';
       // Equities can only update when market is active, BTC can update 24/7
       const symbols = isMarketClosed ? ['BTC'] : ['SPY', 'QQQ', 'BTC'];
       const randomSymbol = symbols[Math.floor(Math.random() * symbols.length)];
@@ -235,7 +242,7 @@ export default function App() {
     }, 2500);
 
     return () => clearInterval(simulator);
-  }, [marketData ? marketData.status : null]);
+  }, []);
 
   const fetchPollerStatus = async () => {
     try {
@@ -323,45 +330,44 @@ export default function App() {
   }, []);
 
   // Trigger automatic highlights generation when selectedAlert is opened and bullets are empty
+  const selectedId = selectedAlert?.id;
+  const hasBullets = !!selectedAlert?.summary_bullets?.length;
   useEffect(() => {
-    if (!selectedAlert || !selectedAlert.id) return;
+    if (!selectedId || hasBullets) return;
     
-    const bullets = selectedAlert.summary_bullets;
-    if (!bullets || bullets.length === 0) {
-      const fetchOnDemandBullets = async () => {
-        setIsGeneratingBullets(true);
-        try {
-          const res = await fetch(`${API_BASE}/api/news/${selectedAlert.id}/summarize`, {
-            method: 'POST'
-          });
-          if (res.ok) {
-            const updatedItem = await res.json();
-            const parsedBullets = Array.isArray(updatedItem.summary_bullets)
-              ? updatedItem.summary_bullets
-              : (updatedItem.summary_bullets ? JSON.parse(updatedItem.summary_bullets) : []);
-            
-            const enrichedItem = { ...updatedItem, summary_bullets: parsedBullets };
-            
-            // Only update selectedAlert if the user hasn't closed it or switched to another item in the meantime
-            setSelectedAlert(prev => prev && prev.id === enrichedItem.id ? enrichedItem : prev);
-            
-            // Update news list so changes persist in local list state
-            setNews(prevNews => prevNews.map(item => item.id === enrichedItem.id ? enrichedItem : item));
-          } else {
-            console.error('Failed to generate summary bullets');
-          }
-        } catch (err) {
-          console.error('Error calling summarize API:', err);
-        } finally {
-          setIsGeneratingBullets(false);
+    const fetchOnDemandBullets = async () => {
+      setIsGeneratingBullets(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/news/${selectedId}/summarize`, {
+          method: 'POST'
+        });
+        if (res.ok) {
+          const updatedItem = await res.json();
+          const parsedBullets = Array.isArray(updatedItem.summary_bullets)
+            ? updatedItem.summary_bullets
+            : (updatedItem.summary_bullets ? JSON.parse(updatedItem.summary_bullets) : []);
+          
+          const enrichedItem = { ...updatedItem, summary_bullets: parsedBullets };
+          
+          // Only update selectedAlert if the user hasn't closed it or switched to another item in the meantime
+          setSelectedAlert(prev => prev && prev.id === enrichedItem.id ? enrichedItem : prev);
+          
+          // Update news list so changes persist in local list state
+          setNews(prevNews => prevNews.map(item => item.id === enrichedItem.id ? enrichedItem : item));
+        } else {
+          console.error('Failed to generate summary bullets');
         }
-      };
-      
-      fetchOnDemandBullets();
-    }
-  }, [selectedAlert?.id]);
+      } catch (err) {
+        console.error('Error calling summarize API:', err);
+      } finally {
+        setIsGeneratingBullets(false);
+      }
+    };
+    
+    fetchOnDemandBullets();
+  }, [selectedId, hasBullets]);
 
-  const fetchNews = async () => {
+  async function fetchNews() {
     try {
       const res = await fetch(`${API_BASE}/api/news?onlyInvestments=true&limit=200`);
       if (res.ok) {
@@ -371,9 +377,9 @@ export default function App() {
     } catch (err) {
       console.error('Error fetching news:', err);
     }
-  };
+  }
 
-  const fetchTrends = async () => {
+  async function fetchTrends() {
     try {
       const res = await fetch(`${API_BASE}/api/analytics/trends`);
       if (res.ok) {
@@ -385,9 +391,9 @@ export default function App() {
     } catch (err) {
       console.error('Error fetching trends:', err);
     }
-  };
+  }
 
-  const fetchPaginatedLogs = async (resetList = false) => {
+  const fetchPaginatedLogs = useCallback(async (resetList = false) => {
     setIsLogsLoading(true);
     try {
       const pageToFetch = resetList ? 1 : logsPage;
@@ -422,7 +428,7 @@ export default function App() {
     } finally {
       setIsLogsLoading(false);
     }
-  };
+  }, [logsPage, logsSearchQuery, logsSector, logsFundingType, logsListingStatus, logsSortBy, logsSortOrder]);
 
   // Trigger paginated logs search on filters/sort changes
   useEffect(() => {
@@ -431,16 +437,16 @@ export default function App() {
     }, 300); // 300ms debounce
 
     return () => clearTimeout(delayDebounceFn);
-  }, [logsSearchQuery, logsSector, logsFundingType, logsListingStatus, logsSortBy, logsSortOrder]);
+  }, [fetchPaginatedLogs]);
 
   // Trigger loading next page when page increments
   useEffect(() => {
     if (logsPage > 1) {
       fetchPaginatedLogs(false);
     }
-  }, [logsPage]);
+  }, [logsPage, fetchPaginatedLogs]);
 
-  const fetchStats = async () => {
+  async function fetchStats() {
     try {
       const res = await fetch(`${API_BASE}/api/stats`);
       if (res.ok) {
@@ -450,10 +456,10 @@ export default function App() {
     } catch (err) {
       console.error('Error fetching stats:', err);
     }
-  };
+  }
 
 
-  const handleManualPoll = async () => {
+  async function handleManualPoll() {
     setIsPolling(true);
     try {
       const res = await fetch(`${API_BASE}/api/poll`, { method: 'POST' });
@@ -468,13 +474,14 @@ export default function App() {
         showToast('Failed to start polling.', 'error');
       }
     } catch (err) {
+      console.error('Error connecting to backend:', err);
       showToast('Error connecting to backend.', 'error');
     } finally {
       setTimeout(() => setIsPolling(false), 2000);
     }
-  };
+  }
 
-  const requestNotificationPermission = () => {
+  function requestNotificationPermission() {
     if ('Notification' in window) {
       Notification.requestPermission().then(permission => {
         setBrowserNotificationsEnabled(permission === 'granted');
@@ -485,7 +492,7 @@ export default function App() {
     } else {
       alert('Desktop notifications are not supported in this browser.');
     }
-  };
+  }
 
   // Filtered lists
   const investmentsOnly = news.filter(item => item.is_investment === 1 || item.is_investment === true);
@@ -498,9 +505,6 @@ export default function App() {
     item.funding_type !== 'government' && (dashboardSector === 'All' || item.sector === dashboardSector)
   );
 
-  // Calculate totals for charts
-  const totalFunding = investmentsOnly.reduce((acc, curr) => acc + (curr.investment_amount_usd || 0), 0);
-  
   // Sector distribution calculations
   const sectorTotals = investmentsOnly.reduce((acc, curr) => {
     const sec = curr.sector || 'General';
@@ -537,7 +541,7 @@ export default function App() {
 
   const sortedRecipients = Object.entries(recipientFunding)
     .sort((a, b) => b[1] - a[1])
-    .filter(([_, amount]) => amount > 0)
+    .filter((entry) => entry[1] > 0)
     .slice(0, 15);
   return (
     <div className="app-container">
@@ -548,11 +552,71 @@ export default function App() {
         </div>
       )}
 
-      {/* Sidebar Nav */}
+      {/* Sticky Mobile Header */}
+      <header className="mobile-header">
+        <div className="mobile-brand">
+          <span className="brand-logo">⚡</span>
+          <span className="brand-name">InvestAlert</span>
+        </div>
+        <button 
+          type="button"
+          className="mobile-settings-btn"
+          onClick={() => setIsSettingsSheetOpen(true)}
+          aria-label="Open settings and diagnostics"
+        >
+          ⚙️
+        </button>
+      </header>
+
+      {/* Sticky Mobile Sub-Header for Tab Switching */}
+      <div className="mobile-sub-header">
+        <div className="mobile-segmented-control">
+          <button 
+            type="button"
+            className={`mobile-segmented-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setActiveTab('dashboard')}
+          >
+            <span className="mobile-segmented-icon">📊</span>
+            <span>Dashboard</span>
+          </button>
+          <button 
+            type="button"
+            className={`mobile-segmented-btn ${activeTab === 'logs' ? 'active' : ''}`}
+            onClick={() => setActiveTab('logs')}
+          >
+            <span className="mobile-segmented-icon">🔍</span>
+            <span>Search & Analytics</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Sticky Bottom Tab Bar on Mobile */}
+      <nav className="mobile-tab-bar">
+        <button 
+          type="button"
+          className={`tab-bar-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+          onClick={() => setActiveTab('dashboard')}
+        >
+          <span className="tab-bar-icon">📊</span>
+          <span className="tab-bar-label">Dashboard</span>
+        </button>
+        <button 
+          type="button"
+          className={`tab-bar-item ${activeTab === 'logs' ? 'active' : ''}`}
+          onClick={() => setActiveTab('logs')}
+        >
+          <span className="tab-bar-icon">🔍</span>
+          <span className="tab-bar-label">Search & Analytics</span>
+        </button>
+      </nav>
+
+      {/* Desktop Sidebar (hidden on mobile via CSS) */}
       <div className="sidebar">
         <div className="brand-section">
-          <div className="brand-logo">⚡</div>
-          <div className="brand-name">InvestAlert</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="brand-logo">⚡</div>
+            <div className="brand-name">InvestAlert</div>
+          </div>
         </div>
 
         <ul className="nav-menu">
@@ -570,7 +634,7 @@ export default function App() {
           </li>
         </ul>
 
-        {/* Minimal connection status */}
+        {/* Desktop connection status */}
         <div className="sidebar-status">
           <div className="live-indicator">
             <span className={`live-dot ${isLive ? '' : 'offline'}`} style={{ backgroundColor: isLive ? '#2ecc71' : '#e74c3c' }}></span>
@@ -640,7 +704,7 @@ export default function App() {
               className="glass-btn glass-btn-secondary" 
               onClick={handleManualPoll} 
               disabled={isPolling}
-              style={{ padding: '8px 16px', fontSize: '13px' }}
+              style={{ padding: '8px 16px', fontSize: '13px', height: '38px' }}
             >
               {isPolling ? '🔄 Syncing...' : '🔄 Sync Feed'}
             </button>
@@ -896,302 +960,121 @@ export default function App() {
           <div className="dashboard-grid">
             {/* Left Column: Search Feed */}
             <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {/* Filter Console */}
-              <div className="filter-console">
-                <div className="filter-console-header">
-                  <div className="filter-console-title">
-                    <span>🔍 Advanced Filter Console</span>
-                  </div>
-                  <button 
-                    type="button" 
-                    className="filter-reset-btn"
-                    onClick={handleClearFilters}
-                  >
-                    🔄 Reset Filters
-                  </button>
+              {/* Search Bar + Filters trigger row */}
+              <div className="search-bar-row">
+                <div className="search-input-wrapper">
+                  <span className="search-input-icon">🔍</span>
+                  <input
+                    type="text"
+                    placeholder="Search company name, funder, key phrase..."
+                    className="glass-input search-input-with-icon"
+                    value={logsSearchQuery}
+                    onChange={(e) => {
+                      setLogsSearchQuery(e.target.value);
+                      setLogsPage(1);
+                    }}
+                  />
+                  {logsSearchQuery && (
+                    <button 
+                      type="button" 
+                      className="search-input-clear"
+                      onClick={() => {
+                        setLogsSearchQuery('');
+                        setLogsPage(1);
+                      }}
+                      aria-label="Clear search"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
+                <button 
+                  type="button"
+                  className="filter-toggle-btn"
+                  onClick={() => setIsFilterSheetOpen(true)}
+                  aria-expanded={isFilterSheetOpen}
+                >
+                  ⚙️ Filters
+                  {(logsSector || logsFundingType !== 'all' || logsListingStatus !== 'all') && (
+                    <span className="filter-badge-dot" />
+                  )}
+                </button>
+              </div>
 
-                {/* Quick Presets Row */}
-                <div className="presets-row">
-                  <span className="presets-label">⚡ Quick Presets:</span>
-                  <div className="presets-list">
-                    <button 
-                      type="button"
-                      className={`preset-btn ${logsSearchQuery === '' && logsSector === '' && logsFundingType === 'all' && logsListingStatus === 'all' && logsSortBy === 'published_at' && logsSortOrder === 'desc' ? 'active' : ''}`}
-                      onClick={handleClearFilters}
-                    >
-                      All Transactions
-                    </button>
-                    <button 
-                      type="button"
-                      className={`preset-btn ${logsFundingType === 'government' && logsListingStatus === 'all' && logsSector === '' ? 'active' : ''}`}
-                      onClick={() => {
-                        setLogsFundingType('government');
-                        setLogsListingStatus('all');
-                        setLogsSector('');
-                        setLogsPage(1);
-                        showToast('Filter: Government Grants', 'success');
-                      }}
-                    >
-                      🏛️ Gov Grants
-                    </button>
-                    <button 
-                      type="button"
-                      className={`preset-btn ${logsFundingType === 'private' && logsListingStatus === 'all' && logsSector === '' ? 'active' : ''}`}
-                      onClick={() => {
-                        setLogsFundingType('private');
-                        setLogsListingStatus('all');
-                        setLogsSector('');
-                        setLogsPage(1);
-                        showToast('Filter: Private Capital', 'success');
-                      }}
-                    >
-                      💼 Venture Capital
-                    </button>
-                    <button 
-                      type="button"
-                      className={`preset-btn ${logsListingStatus === 'public' && logsFundingType === 'all' && logsSector === '' ? 'active' : ''}`}
-                      onClick={() => {
-                        setLogsListingStatus('public');
-                        setLogsFundingType('all');
-                        setLogsSector('');
-                        setLogsPage(1);
-                        showToast('Filter: Publicly Listed Companies', 'success');
-                      }}
-                    >
-                      📈 Publicly Listed
-                    </button>
-                    <button 
-                      type="button"
-                      className={`preset-btn ${logsSortBy === 'investment_amount_usd' && logsSortOrder === 'desc' ? 'active' : ''}`}
-                      onClick={() => {
-                        setLogsSortBy('investment_amount_usd');
-                        setLogsSortOrder('desc');
-                        setLogsPage(1);
-                        showToast('Sorted by Highest Funding', 'success');
-                      }}
-                    >
-                      🔥 Top Funding
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="filter-grid">
-                  <div className="filter-field field-search">
-                    <span className="filter-field-label">Search Keywords</span>
-                    <div className="search-input-wrapper">
-                      <span className="search-input-icon">🔍</span>
-                      <input
-                        type="text"
-                        placeholder="Search company name, funder, key phrase..."
-                        className="glass-input search-input-with-icon"
-                        value={logsSearchQuery}
-                        onChange={(e) => {
-                          setLogsSearchQuery(e.target.value);
-                          setLogsPage(1);
-                        }}
-                      />
-                      {logsSearchQuery && (
+              {/* Active Filters Row */}
+              {(logsSearchQuery || logsSector || logsFundingType !== 'all' || logsListingStatus !== 'all') && (
+                <div className="active-filters-row" style={{ marginTop: 0 }}>
+                  <div className="active-filters-list">
+                    {logsSearchQuery && (
+                      <span className="active-filter-badge">
+                        🔍 "{logsSearchQuery}"
                         <button 
                           type="button" 
-                          className="search-input-clear"
+                          className="active-filter-close"
                           onClick={() => {
                             setLogsSearchQuery('');
                             setLogsPage(1);
                           }}
-                          aria-label="Clear search"
                         >
                           ×
                         </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="filter-field field-sector">
-                    <span className="filter-field-label">Sector Category</span>
-                    <select
-                      className="glass-input"
-                      value={logsSector}
-                      onChange={(e) => {
-                        setLogsSector(e.target.value);
-                        setLogsPage(1);
-                      }}
+                      </span>
+                    )}
+                    {logsSector && (
+                      <span className="active-filter-badge">
+                        📁 {logsSector}
+                        <button 
+                          type="button" 
+                          className="active-filter-close"
+                          onClick={() => {
+                            setLogsSector('');
+                            setLogsPage(1);
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    )}
+                    {logsFundingType !== 'all' && (
+                      <span className="active-filter-badge">
+                        {logsFundingType === 'government' ? '🏛️ Gov' : '💼 Private'}
+                        <button 
+                          type="button" 
+                          className="active-filter-close"
+                          onClick={() => {
+                            setLogsFundingType('all');
+                            setLogsPage(1);
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    )}
+                    {logsListingStatus !== 'all' && (
+                      <span className="active-filter-badge">
+                        {logsListingStatus === 'public' ? '📈 Public' : '🔒 Private'}
+                        <button 
+                          type="button" 
+                          className="active-filter-close"
+                          onClick={() => {
+                            setLogsListingStatus('all');
+                            setLogsPage(1);
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    )}
+                    <button 
+                      type="button"
+                      className="clear-all-badge-btn" 
+                      onClick={handleClearFilters}
                     >
-                      <option value="">📁 All Sectors</option>
-                      {sectors.map(s => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="filter-field field-funding">
-                    <span className="filter-field-label">Funding Source</span>
-                    <div className="segmented-control">
-                      <button 
-                        type="button" 
-                        className={`segmented-btn ${logsFundingType === 'all' ? 'active' : ''}`}
-                        onClick={() => {
-                          setLogsFundingType('all');
-                          setLogsPage(1);
-                        }}
-                      >
-                        All Funding
-                      </button>
-                      <button 
-                        type="button" 
-                        className={`segmented-btn ${logsFundingType === 'government' ? 'active' : ''}`}
-                        onClick={() => {
-                          setLogsFundingType('government');
-                          setLogsPage(1);
-                        }}
-                      >
-                        🏛️ Gov Only
-                      </button>
-                      <button 
-                        type="button" 
-                        className={`segmented-btn ${logsFundingType === 'private' ? 'active' : ''}`}
-                        onClick={() => {
-                          setLogsFundingType('private');
-                          setLogsPage(1);
-                        }}
-                      >
-                        💼 Private Only
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="filter-field field-listing">
-                    <span className="filter-field-label">Listing Status</span>
-                    <div className="segmented-control">
-                      <button 
-                        type="button" 
-                        className={`segmented-btn ${logsListingStatus === 'all' ? 'active' : ''}`}
-                        onClick={() => {
-                          setLogsListingStatus('all');
-                          setLogsPage(1);
-                        }}
-                      >
-                        All Listings
-                      </button>
-                      <button 
-                        type="button" 
-                        className={`segmented-btn ${logsListingStatus === 'public' ? 'active' : ''}`}
-                        onClick={() => {
-                          setLogsListingStatus('public');
-                          setLogsPage(1);
-                        }}
-                      >
-                        📈 Public Only
-                      </button>
-                      <button 
-                        type="button" 
-                        className={`segmented-btn ${logsListingStatus === 'private' ? 'active' : ''}`}
-                        onClick={() => {
-                          setLogsListingStatus('private');
-                          setLogsPage(1);
-                        }}
-                      >
-                        🔒 Private Only
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="filter-field field-sort">
-                    <span className="filter-field-label">Sort Order</span>
-                    <select
-                      className="glass-input"
-                      value={`${logsSortBy}:${logsSortOrder}`}
-                      onChange={(e) => {
-                        const [sortBy, sortOrder] = e.target.value.split(':');
-                        setLogsSortBy(sortBy);
-                        setLogsSortOrder(sortOrder);
-                        setLogsPage(1);
-                      }}
-                    >
-                      <option value="published_at:desc">📅 Newest First</option>
-                      <option value="published_at:asc">📅 Oldest First</option>
-                      <option value="investment_amount_usd:desc">💰 Highest Funding</option>
-                      <option value="investment_amount_usd:asc">💰 Lowest Funding</option>
-                    </select>
+                      Clear All
+                    </button>
                   </div>
                 </div>
-
-                {/* Active Filters Row */}
-                {(logsSearchQuery || logsSector || logsFundingType !== 'all' || logsListingStatus !== 'all') && (
-                  <div className="active-filters-row">
-                    <span className="active-filters-label">Active Filters:</span>
-                    <div className="active-filters-list">
-                      {logsSearchQuery && (
-                        <span className="active-filter-badge">
-                          🔍 "{logsSearchQuery}"
-                          <button 
-                            type="button" 
-                            className="active-filter-close"
-                            onClick={() => {
-                              setLogsSearchQuery('');
-                              setLogsPage(1);
-                            }}
-                          >
-                            ×
-                          </button>
-                        </span>
-                      )}
-                      {logsSector && (
-                        <span className="active-filter-badge">
-                          📁 {logsSector}
-                          <button 
-                            type="button" 
-                            className="active-filter-close"
-                            onClick={() => {
-                              setLogsSector('');
-                              setLogsPage(1);
-                            }}
-                          >
-                            ×
-                          </button>
-                        </span>
-                      )}
-                      {logsFundingType !== 'all' && (
-                        <span className="active-filter-badge">
-                          {logsFundingType === 'government' ? '🏛️ Gov Funding' : '💼 Private Funding'}
-                          <button 
-                            type="button" 
-                            className="active-filter-close"
-                            onClick={() => {
-                              setLogsFundingType('all');
-                              setLogsPage(1);
-                            }}
-                          >
-                            ×
-                          </button>
-                        </span>
-                      )}
-                      {logsListingStatus !== 'all' && (
-                        <span className="active-filter-badge">
-                          {logsListingStatus === 'public' ? '📈 Public' : '🔒 Private'}
-                          <button 
-                            type="button" 
-                            className="active-filter-close"
-                            onClick={() => {
-                              setLogsListingStatus('all');
-                              setLogsPage(1);
-                            }}
-                          >
-                            ×
-                          </button>
-                        </span>
-                      )}
-                      <button 
-                        type="button"
-                        className="clear-all-badge-btn" 
-                        onClick={handleClearFilters}
-                      >
-                        Clear All
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              )}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px', color: 'hsl(var(--text-secondary))', paddingBottom: '8px', borderBottom: '1px solid hsl(var(--border-light))' }}>
                 <div>
@@ -1335,6 +1218,308 @@ export default function App() {
         isOpen={!!activeCompanyDrawer}
         onClose={() => setActiveCompanyDrawer(null)}
       />
+
+      {/* Settings Bottom Sheet Overlay */}
+      {isSettingsSheetOpen && (
+        <div className="bottom-sheet-overlay" onClick={() => setIsSettingsSheetOpen(false)}>
+          <div className="bottom-sheet-container" onClick={(e) => e.stopPropagation()}>
+            <div className="bottom-sheet-handle" />
+            <div className="bottom-sheet-header">
+              <h3>Settings & Connection</h3>
+              <button 
+                type="button"
+                className="bottom-sheet-close" 
+                onClick={() => setIsSettingsSheetOpen(false)}
+              >
+                Done
+              </button>
+            </div>
+            <div className="bottom-sheet-content">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* Theme Toggle */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: '500', fontSize: '14px' }}>Color Theme</span>
+                  <button 
+                    type="button" 
+                    className="theme-toggle-btn" 
+                    onClick={toggleTheme}
+                    style={{ height: '44px', width: '120px', justifyContent: 'center' }}
+                  >
+                    {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
+                  </button>
+                </div>
+
+                {/* Sync Trigger */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: '500', fontSize: '14px' }}>Sync Feed Source</span>
+                  <button 
+                    className="glass-btn glass-btn-secondary" 
+                    onClick={() => {
+                      handleManualPoll();
+                      setIsSettingsSheetOpen(false);
+                    }} 
+                    disabled={isPolling}
+                    style={{ height: '44px', width: '120px' }}
+                  >
+                    {isPolling ? '🔄 Syncing...' : '🔄 Sync'}
+                  </button>
+                </div>
+
+                {/* Notifications */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: '500', fontSize: '14px' }}>Desktop Alerts</span>
+                  <button
+                    type="button"
+                    className="glass-btn"
+                    onClick={requestNotificationPermission}
+                    style={{ fontSize: '13px', height: '44px', width: '120px' }}
+                  >
+                    {browserNotificationsEnabled ? '🔔 Enabled' : '🔕 Enable'}
+                  </button>
+                </div>
+
+                {/* Connection Status */}
+                <div style={{ padding: '16px', background: 'hsl(var(--bg-dark) / 0.4)', borderRadius: '10px', border: '1px solid hsl(var(--border-light))' }}>
+                  <strong style={{ display: 'block', marginBottom: '8px', fontSize: '13px' }}>Sync Connection</strong>
+                  <div className="live-indicator">
+                    <span className={`live-dot ${isLive ? '' : 'offline'}`} style={{ backgroundColor: isLive ? '#34c759' : '#ff3b30' }}></span>
+                    <span style={{ fontSize: '13px' }}>{isLive ? 'Real-Time Sync Connected' : 'Disconnected'}</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'hsl(var(--text-muted))', marginTop: '8px' }}>
+                    Tracked: <strong>{stats.totalInvestments}</strong> deals
+                  </div>
+                </div>
+
+                {/* Poller Diagnostics */}
+                {pollerStatus && (
+                  <div style={{ padding: '16px', background: 'hsl(var(--bg-dark) / 0.4)', borderRadius: '10px', border: '1px solid hsl(var(--border-light))', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong>Poller Diagnostics</strong>
+                      <span className={`live-dot ${pollerStatus.isPolling ? '' : 'offline'}`} style={{ backgroundColor: pollerStatus.isPolling ? '#0a84ff' : (pollerStatus.lastError ? '#ff3b30' : '#8e8e93'), width: '8px', height: '8px' }}></span>
+                    </div>
+                    <div style={{ color: 'hsl(var(--text-muted))' }}>
+                      Last run: {pollerStatus.lastRunAt ? new Date(pollerStatus.lastRunAt).toLocaleTimeString() : 'Never'}
+                    </div>
+                    {pollerStatus.lastError ? (
+                      <div style={{ color: '#ff3b30' }}>⚠️ {pollerStatus.lastError}</div>
+                    ) : (
+                      <div style={{ color: '#34c759' }}>✅ Healthy ({pollerStatus.itemsFound || 0} hits)</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filter Bottom Sheet Overlay */}
+      {isFilterSheetOpen && (
+        <div className="bottom-sheet-overlay" onClick={() => setIsFilterSheetOpen(false)}>
+          <div className="bottom-sheet-container" onClick={(e) => e.stopPropagation()}>
+            <div className="bottom-sheet-handle" />
+            <div className="bottom-sheet-header">
+              <h3>Advanced Filters</h3>
+              <button 
+                type="button"
+                className="bottom-sheet-close" 
+                onClick={() => setIsFilterSheetOpen(false)}
+              >
+                Done
+              </button>
+            </div>
+            <div className="bottom-sheet-content">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* Quick Presets */}
+                <div className="presets-row" style={{ border: 'none', padding: 0, background: 'none' }}>
+                  <span className="presets-label">⚡ Quick Presets</span>
+                  <div className="presets-list" style={{ marginTop: '8px' }}>
+                    <button 
+                      type="button"
+                      className={`preset-btn ${logsSearchQuery === '' && logsSector === '' && logsFundingType === 'all' && logsListingStatus === 'all' && logsSortBy === 'published_at' && logsSortOrder === 'desc' ? 'active' : ''}`}
+                      onClick={() => {
+                        handleClearFilters();
+                        setIsFilterSheetOpen(false);
+                      }}
+                      style={{ height: '36px', display: 'flex', alignItems: 'center' }}
+                    >
+                      All Transactions
+                    </button>
+                    <button 
+                      type="button"
+                      className={`preset-btn ${logsFundingType === 'government' && logsListingStatus === 'all' && logsSector === '' ? 'active' : ''}`}
+                      onClick={() => {
+                        setLogsFundingType('government');
+                        setLogsListingStatus('all');
+                        setLogsSector('');
+                        setLogsPage(1);
+                        showToast('Filter: Government Grants', 'success');
+                        setIsFilterSheetOpen(false);
+                      }}
+                      style={{ height: '36px', display: 'flex', alignItems: 'center' }}
+                    >
+                      🏛️ Gov Grants
+                    </button>
+                    <button 
+                      type="button"
+                      className={`preset-btn ${logsFundingType === 'private' && logsListingStatus === 'all' && logsSector === '' ? 'active' : ''}`}
+                      onClick={() => {
+                        setLogsFundingType('private');
+                        setLogsListingStatus('all');
+                        setLogsSector('');
+                        setLogsPage(1);
+                        showToast('Filter: Private Capital', 'success');
+                        setIsFilterSheetOpen(false);
+                      }}
+                      style={{ height: '36px', display: 'flex', alignItems: 'center' }}
+                    >
+                      💼 Venture Capital
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sector Dropdown */}
+                <div className="filter-field">
+                  <span className="filter-field-label">Sector Category</span>
+                  <select
+                    className="glass-input"
+                    value={logsSector}
+                    onChange={(e) => {
+                      setLogsSector(e.target.value);
+                      setLogsPage(1);
+                    }}
+                    style={{ height: '44px' }}
+                  >
+                    <option value="">📁 All Sectors</option>
+                    {sectors.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Funding Source Segmented */}
+                <div className="filter-field">
+                  <span className="filter-field-label">Funding Source</span>
+                  <div className="segmented-control" style={{ height: '44px', padding: '3px' }}>
+                    <button 
+                      type="button" 
+                      className={`segmented-btn ${logsFundingType === 'all' ? 'active' : ''}`}
+                      onClick={() => {
+                        setLogsFundingType('all');
+                        setLogsPage(1);
+                      }}
+                      style={{ flex: 1, height: '100%', justifyContent: 'center' }}
+                    >
+                      All
+                    </button>
+                    <button 
+                      type="button" 
+                      className={`segmented-btn ${logsFundingType === 'government' ? 'active' : ''}`}
+                      onClick={() => {
+                        setLogsFundingType('government');
+                        setLogsPage(1);
+                      }}
+                      style={{ flex: 1, height: '100%', justifyContent: 'center' }}
+                    >
+                      🏛️ Gov
+                    </button>
+                    <button 
+                      type="button" 
+                      className={`segmented-btn ${logsFundingType === 'private' ? 'active' : ''}`}
+                      onClick={() => {
+                        setLogsFundingType('private');
+                        setLogsPage(1);
+                      }}
+                      style={{ flex: 1, height: '100%', justifyContent: 'center' }}
+                    >
+                      💼 Private
+                    </button>
+                  </div>
+                </div>
+
+                {/* Listing Status Segmented */}
+                <div className="filter-field">
+                  <span className="filter-field-label">Listing Status</span>
+                  <div className="segmented-control" style={{ height: '44px', padding: '3px' }}>
+                    <button 
+                      type="button" 
+                      className={`segmented-btn ${logsListingStatus === 'all' ? 'active' : ''}`}
+                      onClick={() => {
+                        setLogsListingStatus('all');
+                        setLogsPage(1);
+                      }}
+                      style={{ flex: 1, height: '100%', justifyContent: 'center' }}
+                    >
+                      All
+                    </button>
+                    <button 
+                      type="button" 
+                      className={`segmented-btn ${logsListingStatus === 'public' ? 'active' : ''}`}
+                      onClick={() => {
+                        setLogsListingStatus('public');
+                        setLogsPage(1);
+                      }}
+                      style={{ flex: 1, height: '100%', justifyContent: 'center' }}
+                    >
+                      📈 Public
+                    </button>
+                    <button 
+                      type="button" 
+                      className={`segmented-btn ${logsListingStatus === 'private' ? 'active' : ''}`}
+                      onClick={() => {
+                        setLogsListingStatus('private');
+                        setLogsPage(1);
+                      }}
+                      style={{ flex: 1, height: '100%', justifyContent: 'center' }}
+                    >
+                      🔒 Private
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sort Order Dropdown */}
+                <div className="filter-field">
+                  <span className="filter-field-label">Sort Order</span>
+                  <select
+                    className="glass-input"
+                    value={`${logsSortBy}:${logsSortOrder}`}
+                    onChange={(e) => {
+                      const [sortBy, sortOrder] = e.target.value.split(':');
+                      setLogsSortBy(sortBy);
+                      setLogsSortOrder(sortOrder);
+                      setLogsPage(1);
+                    }}
+                    style={{ height: '44px' }}
+                  >
+                    <option value="published_at:desc">📅 Newest First</option>
+                    <option value="published_at:asc">📅 Oldest First</option>
+                    <option value="investment_amount_usd:desc">💰 Highest Funding</option>
+                    <option value="investment_amount_usd:asc">💰 Lowest Funding</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="bottom-sheet-footer">
+              <button 
+                type="button"
+                className="glass-btn glass-btn-secondary" 
+                onClick={handleClearFilters}
+                style={{ flex: 1, height: '44px' }}
+              >
+                Reset
+              </button>
+              <button 
+                type="button"
+                className="glass-btn" 
+                onClick={() => setIsFilterSheetOpen(false)}
+                style={{ flex: 2, height: '44px' }}
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

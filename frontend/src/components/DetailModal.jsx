@@ -44,7 +44,7 @@ const renderDealFlow = (alert) => {
   const gradEnd = isGov ? 'hsl(var(--accent-blue))' : 'hsl(var(--accent-purple))';
 
   return (
-    <svg className="deal-flow-svg" width="100%" height={totalHeight} viewBox={`0 0 ${svgWidth} ${totalHeight}`} style={{ overflow: 'visible' }}>
+    <svg className="deal-flow-svg" width="100%" viewBox={`0 0 ${svgWidth} ${totalHeight}`} style={{ overflow: 'visible', height: 'auto' }}>
       <defs>
         <linearGradient id="flow-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stopColor={gradStart} />
@@ -309,10 +309,9 @@ export default function DetailModal({ alert, onClose, isGeneratingBullets }) {
           ) : null}
         </div>
 
-        <div className="modal-footer-action" style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+        <div className="modal-footer-action">
           <button 
             className="glass-btn glass-btn-secondary" 
-            style={{ flex: 1 }}
             onClick={handleCopySummary}
           >
             {copied ? '✅ Copied!' : '📋 Copy Summary'}
@@ -322,9 +321,8 @@ export default function DetailModal({ alert, onClose, isGeneratingBullets }) {
             target="_blank" 
             rel="noopener noreferrer" 
             className="glass-btn"
-            style={{ flex: 2, textAlign: 'center', textDecoration: 'none' }}
           >
-            🔗 Open Original Announcement
+            🔗 Open original
           </a>
         </div>
       </div>

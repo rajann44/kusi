@@ -1,4 +1,4 @@
-import React from 'react';
+
 
 // Helper to render a beautiful micro sparkline SVG for index trends
 const renderSparkline = (prices, isPositive) => {

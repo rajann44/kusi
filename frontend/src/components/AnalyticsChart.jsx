@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 const formatAmount = (val) => {
   if (val >= 1e9) return `$${(val / 1e9).toFixed(1)}B`;
@@ -100,12 +100,12 @@ export default function AnalyticsChart({ trends }) {
 
   return (
     <div style={{ position: 'relative' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '15px', marginBottom: '8px', paddingLeft: '55px' }}>
+      <div className="chart-controls-wrapper">
         <div style={{ display: 'flex', gap: '8px' }}>
           <button 
             type="button" 
             className="glass-btn glass-btn-secondary" 
-            style={{ padding: '2px 8px', fontSize: '11px', opacity: timeline === '1y' ? 1 : 0.6 }}
+            style={{ padding: '0 12px', height: '36px', fontSize: '12px', opacity: timeline === '1y' ? 1 : 0.6 }}
             onClick={() => setTimeline('1y')}
           >
             1 Year
@@ -113,28 +113,27 @@ export default function AnalyticsChart({ trends }) {
           <button 
             type="button" 
             className="glass-btn glass-btn-secondary" 
-            style={{ padding: '2px 8px', fontSize: '11px', opacity: timeline === 'all' ? 1 : 0.6 }}
+            style={{ padding: '0 12px', height: '36px', fontSize: '12px', opacity: timeline === 'all' ? 1 : 0.6 }}
             onClick={() => setTimeline('all')}
           >
             All-Time
           </button>
         </div>
         <div style={{ display: 'flex', gap: '16px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer', opacity: showGov ? 1 : 0.5, transition: 'opacity 0.2s' }}>
-            <input type="checkbox" checked={showGov} onChange={() => setShowGov(!showGov)} style={{ accentColor: 'hsl(var(--accent-blue))' }} />
-            <span style={{ color: 'hsl(var(--accent-blue))', fontWeight: 'bold' }}>Gov Grants</span>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer', opacity: showGov ? 1 : 0.6, padding: '8px 4px' }}>
+            <input type="checkbox" checked={showGov} onChange={() => setShowGov(!showGov)} style={{ accentColor: 'hsl(var(--accent-blue))', width: '18px', height: '18px', cursor: 'pointer' }} />
+            <span style={{ color: 'hsl(var(--accent-blue))', fontWeight: '600' }}>Gov Grants</span>
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer', opacity: showPrivate ? 1 : 0.5, transition: 'opacity 0.2s' }}>
-            <input type="checkbox" checked={showPrivate} onChange={() => setShowPrivate(!showPrivate)} style={{ accentColor: 'hsl(var(--accent-green))' }} />
-            <span style={{ color: 'hsl(var(--accent-green))', fontWeight: 'bold' }}>Private VC</span>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer', opacity: showPrivate ? 1 : 0.6, padding: '8px 4px' }}>
+            <input type="checkbox" checked={showPrivate} onChange={() => setShowPrivate(!showPrivate)} style={{ accentColor: 'hsl(var(--accent-green))', width: '18px', height: '18px', cursor: 'pointer' }} />
+            <span style={{ color: 'hsl(var(--accent-green))', fontWeight: '600' }}>Private VC</span>
           </label>
         </div>
       </div>
       <svg 
         width="100%" 
-        height="240" 
         viewBox="0 0 500 240" 
-        style={{ overflow: 'visible', cursor: 'crosshair' }}
+        style={{ overflow: 'visible', cursor: 'crosshair', height: 'auto' }}
         onMouseMove={handleChartMouseMove}
         onMouseLeave={handleChartMouseLeave}
       >
