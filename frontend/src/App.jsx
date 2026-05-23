@@ -1031,6 +1031,10 @@ export default function App() {
                 <span className="stat-trend" style={{ color: 'hsl(var(--accent-blue))' }}>
                   in {stats.governmentCount || 0} federal award{stats.governmentCount === 1 ? '' : 's'}
                 </span>
+                <div className="stat-meta">
+                  <span>Source: <strong>USAspending.gov</strong></span>
+                  <span>Data Since: <strong>Nov 30, 2022</strong></span>
+                </div>
               </div>
               <div className="glass-panel stat-card private-panel">
                 <span className="stat-label">💼 Private Venture Capital & Deals</span>
@@ -1040,6 +1044,10 @@ export default function App() {
                 <span className="stat-trend" style={{ color: 'hsl(var(--accent-green))' }}>
                   in {stats.privateCount || 0} venture round{stats.privateCount === 1 ? '' : 's'}
                 </span>
+                <div className="stat-meta">
+                  <span>Source: <strong>SEC EDGAR Form D</strong></span>
+                  <span>Data Since: <strong>Nov 30, 2022</strong></span>
+                </div>
               </div>
               <div className="glass-panel stat-card public-allocation-panel">
                 <div className="allocation-main">
@@ -1050,6 +1058,10 @@ export default function App() {
                       : '0.0%'}
                   </span>
                   <span className="allocation-sublabel">Public Markets Share</span>
+                  <div className="stat-meta" style={{ marginTop: '12px', paddingTop: '8px', width: '100%' }}>
+                    <span>Combined Feeds</span>
+                    <span>Since: <strong>Nov 2022</strong></span>
+                  </div>
                 </div>
                 <div className="allocation-details">
                   <div className="allocation-row">

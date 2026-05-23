@@ -883,6 +883,22 @@ body {
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   box-shadow: none !important;
 }
+
+.stat-meta {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed hsl(var(--border-light));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: hsl(var(--text-muted));
+}
+
+.stat-meta strong {
+  color: hsl(var(--text-secondary));
+  font-weight: 500;
+}
 .stat-card.gov-panel {
   border-left: 4px solid hsl(var(--accent-blue)) !important;
 }
