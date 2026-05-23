@@ -657,6 +657,28 @@ app.get('/api/stream', (req, res) => {
   });
 });
 
+// REST API: Get company history
+app.get('/api/companies/:name/history', async (req, res) => {
+  try {
+    const companyName = req.params.name;
+    const escapedSearch = companyName.replace(/"/g, '\\"');
+    
+    // We search for exact or highly similar matches in the recipients JSON
+    const { data, error } = await supabase
+      .from('news_items')
+      .select('title, investment_amount_usd, funding_type, published_at, source_or_funder, recipients')
+      .eq('is_investment', true)
+      .or(`recipients.cs.[{"name":"${escapedSearch}"}],recipients.cs.["${escapedSearch}"]`)
+      .order('published_at', { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Function to dynamically schedule background polling based on settings
 async function scheduleBackgroundPolling() {
   if (pollingIntervalHandle) {

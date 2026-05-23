@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import MarketBar from './components/MarketBar';
 import DetailModal from './components/DetailModal';
 import AnalyticsChart from './components/AnalyticsChart';
+import CompanyDrawer from './components/CompanyDrawer';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -37,6 +38,7 @@ export default function App() {
   // Modal and details states
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [isGeneratingBullets, setIsGeneratingBullets] = useState(false);
+  const [activeCompanyDrawer, setActiveCompanyDrawer] = useState(null);
 
   // Server-side search, filtering & pagination states for Logs tab
   const [paginatedNews, setPaginatedNews] = useState([]);
@@ -111,7 +113,15 @@ export default function App() {
           
           return (
             <span key={idx} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span>{name}</span>
+              <span 
+                className="clickable-company-name"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveCompanyDrawer(name);
+                }}
+              >
+                {name}
+              </span>
               {isPublic && ticker && (
                 <span className="public-ticker-pill" title={exchange ? `${exchange} Listed` : 'Publicly Listed'}>
                   📈 {exchange ? `${exchange}:` : ''}{ticker}
@@ -814,7 +824,7 @@ export default function App() {
                            <div className="feed-card-footer">
                             {item.sector && <span className="feed-card-badge">{item.sector}</span>}
                             <span className="feed-card-badge">{item.source}</span>
-                            {item.summary_bullets && item.summary_bullets.length > 0 && (
+                            {item.summary_bullets && (Array.isArray(item.summary_bullets) ? item.summary_bullets.length > 0 : item.summary_bullets.bullets?.length > 0) && (
                               <span className="feed-card-badge ai-highlight-badge">✨ Insights Ready</span>
                             )}
                             <span className="feed-card-date">⏱️ {new Date(item.published_at).toLocaleDateString()}</span>
@@ -866,7 +876,7 @@ export default function App() {
                            <div className="feed-card-footer">
                             {item.sector && <span className="feed-card-badge">{item.sector}</span>}
                             <span className="feed-card-badge">{item.source}</span>
-                            {item.summary_bullets && item.summary_bullets.length > 0 && (
+                            {item.summary_bullets && (Array.isArray(item.summary_bullets) ? item.summary_bullets.length > 0 : item.summary_bullets.bullets?.length > 0) && (
                               <span className="feed-card-badge ai-highlight-badge">✨ Insights Ready</span>
                             )}
                             <span className="feed-card-date">⏱️ {new Date(item.published_at).toLocaleDateString()}</span>
@@ -1234,7 +1244,7 @@ export default function App() {
                         <div className="feed-card-footer">
                           {item.sector && <span className="feed-card-badge">{item.sector}</span>}
                           <span className="feed-card-badge">{item.source}</span>
-                          {item.summary_bullets && item.summary_bullets.length > 0 && (
+                          {item.summary_bullets && (Array.isArray(item.summary_bullets) ? item.summary_bullets.length > 0 : item.summary_bullets.bullets?.length > 0) && (
                             <span className="feed-card-badge ai-highlight-badge">✨ Insights Ready</span>
                           )}
                           <span className="feed-card-date">⏱️ {new Date(item.published_at).toLocaleDateString()}</span>
@@ -1311,8 +1321,21 @@ export default function App() {
 
       </main>
 
-      {/* Details Modal */}
-      <DetailModal alert={selectedAlert} onClose={() => setSelectedAlert(null)} isGeneratingBullets={isGeneratingBullets} />
+      {/* Modals & Drawers */}
+      {selectedAlert && (
+        <DetailModal 
+          alert={selectedAlert} 
+          onClose={() => setSelectedAlert(null)}
+          isGeneratingBullets={isGeneratingBullets}
+        />
+      )}
+
+      <CompanyDrawer 
+        companyName={activeCompanyDrawer}
+        isOpen={!!activeCompanyDrawer}
+        onClose={() => setActiveCompanyDrawer(null)}
+      />
+
     </div>
   );
 }
