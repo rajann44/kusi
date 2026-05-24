@@ -9,6 +9,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [isSettingsSheetOpen, setIsSettingsSheetOpen] = useState(false);
+  const [isDashboardLoading, setIsDashboardLoading] = useState(true);
   const [news, setNews] = useState([]);
   const [stats, setStats] = useState({
     totalInvestments: 0,
@@ -257,11 +258,16 @@ export default function App() {
 
   // Fetch news history, stats and settings on mount
   useEffect(() => {
-    fetchNews();
-    fetchStats();
-    fetchTrends();
-    fetchMarketStatus();
-    fetchPollerStatus();
+    setIsDashboardLoading(true);
+    Promise.all([
+      fetchNews(),
+      fetchStats(),
+      fetchTrends(),
+      fetchMarketStatus(),
+      fetchPollerStatus()
+    ]).finally(() => {
+      setIsDashboardLoading(false);
+    });
 
     const marketInterval = setInterval(() => {
       fetchMarketStatus();
@@ -722,10 +728,18 @@ export default function App() {
               <div className="glass-panel stat-card gov-panel">
                 <span className="stat-label">🏛️ Government Grants & Subsidies</span>
                 <span className="stat-value" style={{ color: 'hsl(var(--accent-blue))' }}>
-                  ${((stats.governmentFunding || 0) / 1e9).toFixed(2)}B
+                  {isDashboardLoading ? (
+                    <div className="skeleton-bullet-line" style={{ width: '120px', height: '32px', marginTop: '4px', marginBottom: 0 }}></div>
+                  ) : (
+                    `$${((stats.governmentFunding || 0) / 1e9).toFixed(2)}B`
+                  )}
                 </span>
                 <span className="stat-trend" style={{ color: 'hsl(var(--accent-blue))' }}>
-                  in {stats.governmentCount || 0} federal award{stats.governmentCount === 1 ? '' : 's'}
+                  {isDashboardLoading ? (
+                    <div className="skeleton-bullet-line" style={{ width: '150px', height: '14px', marginTop: '6px', marginBottom: 0 }}></div>
+                  ) : (
+                    `in ${stats.governmentCount || 0} federal award${stats.governmentCount === 1 ? '' : 's'}`
+                  )}
                 </span>
                 <div className="stat-meta">
                   <span>Source: <strong>USAspending.gov</strong></span>
@@ -735,10 +749,18 @@ export default function App() {
               <div className="glass-panel stat-card private-panel">
                 <span className="stat-label">💼 Private Venture Capital & Deals</span>
                 <span className="stat-value" style={{ color: 'hsl(var(--accent-green))' }}>
-                  ${((stats.privateFunding || 0) / 1e9).toFixed(2)}B
+                  {isDashboardLoading ? (
+                    <div className="skeleton-bullet-line" style={{ width: '120px', height: '32px', marginTop: '4px', marginBottom: 0 }}></div>
+                  ) : (
+                    `$${((stats.privateFunding || 0) / 1e9).toFixed(2)}B`
+                  )}
                 </span>
                 <span className="stat-trend" style={{ color: 'hsl(var(--accent-green))' }}>
-                  in {stats.privateCount || 0} venture round{stats.privateCount === 1 ? '' : 's'}
+                  {isDashboardLoading ? (
+                    <div className="skeleton-bullet-line" style={{ width: '150px', height: '14px', marginTop: '6px', marginBottom: 0 }}></div>
+                  ) : (
+                    `in ${stats.privateCount || 0} venture round${stats.privateCount === 1 ? '' : 's'}`
+                  )}
                 </span>
                 <div className="stat-meta">
                   <span>Source: <strong>SEC EDGAR Form D</strong></span>
@@ -749,7 +771,9 @@ export default function App() {
                 <div className="allocation-main">
                   <span className="stat-label">📈 Capital Allocation</span>
                   <span className="stat-value" style={{ color: 'hsl(var(--accent-gold))' }}>
-                    {stats.publicInvestmentsFunding && stats.totalFunding
+                    {isDashboardLoading ? (
+                      <div className="skeleton-bullet-line" style={{ width: '80px', height: '32px', marginTop: '4px', marginBottom: 0 }}></div>
+                    ) : stats.publicInvestmentsFunding && stats.totalFunding
                       ? `${((stats.publicInvestmentsFunding / stats.totalFunding) * 100).toFixed(1)}%`
                       : '0.0%'}
                   </span>
@@ -762,11 +786,11 @@ export default function App() {
                 <div className="allocation-details">
                   <div className="allocation-row">
                     <span>Publicly Listed Companies:</span>
-                    <strong>{formatAmount(stats.publicInvestmentsFunding)} ({stats.publicInvestmentsCount || 0} deals)</strong>
+                    <strong>{isDashboardLoading ? <div className="skeleton-bullet-line" style={{ width: '60px', height: '14px', margin: 0 }}></div> : `${formatAmount(stats.publicInvestmentsFunding)} (${stats.publicInvestmentsCount || 0} deals)`}</strong>
                   </div>
                   <div className="allocation-row">
                     <span>Private Ventures / Other:</span>
-                    <strong>{formatAmount(stats.privateInvestmentsFunding)} ({stats.privateInvestmentsCount || 0} deals)</strong>
+                    <strong>{isDashboardLoading ? <div className="skeleton-bullet-line" style={{ width: '60px', height: '14px', margin: 0 }}></div> : `${formatAmount(stats.privateInvestmentsFunding)} (${stats.privateInvestmentsCount || 0} deals)`}</strong>
                   </div>
                   <div className="allocation-progress-bar-container">
                     <div 
@@ -853,7 +877,15 @@ export default function App() {
                 <div className="feed-column-title gov-title">
                   🏛️ U.S. Government Grants & Subsidies
                 </div>
-                {govInvestments.length === 0 ? (
+                {isDashboardLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <div key={`gov-skeleton-${i}`} className="glass-panel feed-card" style={{ marginBottom: '12px', padding: '16px', opacity: 1 - (i * 0.15) }}>
+                      <div className="skeleton-bullet-line" style={{ width: '40%', height: '14px', marginBottom: '12px' }}></div>
+                      <div className="skeleton-bullet-line" style={{ width: '90%', height: '20px', marginBottom: '16px' }}></div>
+                      <div className="skeleton-bullet-line" style={{ width: '30%', height: '12px' }}></div>
+                    </div>
+                  ))
+                ) : govInvestments.length === 0 ? (
                   <div className="glass-panel" style={{ textAlign: 'center', padding: '40px', color: 'hsl(var(--text-muted))' }}>
                     <p style={{ fontSize: '15px' }}>📡 No government grants yet.</p>
                   </div>
@@ -905,7 +937,15 @@ export default function App() {
                 <div className="feed-column-title private-title">
                   💼 Private Venture Capital & Deals
                 </div>
-                {privateInvestments.length === 0 ? (
+                {isDashboardLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <div key={`private-skeleton-${i}`} className="glass-panel feed-card" style={{ marginBottom: '12px', padding: '16px', opacity: 1 - (i * 0.15) }}>
+                      <div className="skeleton-bullet-line" style={{ width: '40%', height: '14px', marginBottom: '12px' }}></div>
+                      <div className="skeleton-bullet-line" style={{ width: '90%', height: '20px', marginBottom: '16px' }}></div>
+                      <div className="skeleton-bullet-line" style={{ width: '30%', height: '12px' }}></div>
+                    </div>
+                  ))
+                ) : privateInvestments.length === 0 ? (
                   <div className="glass-panel" style={{ textAlign: 'center', padding: '40px', color: 'hsl(var(--text-muted))' }}>
                     <p style={{ fontSize: '15px' }}>📡 No private deals yet.</p>
                   </div>
