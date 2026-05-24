@@ -48,22 +48,45 @@ export default function CompanyDrawer({ companyName, isOpen, onClose }) {
           <div className="stat-box">
             <span className="stat-label">Total Funding Raised</span>
             <span className="stat-value">
-              {totalFunding > 0 ? `$${(totalFunding / 1e6).toFixed(1)}M` : 'Undisclosed'}
+              {loading ? (
+                <div className="skeleton-bullet-line" style={{ width: '120px', height: '28px', marginTop: '4px', marginBottom: 0 }}></div>
+              ) : totalFunding > 0 ? `$${(totalFunding / 1e6).toFixed(1)}M` : 'Undisclosed'}
             </span>
           </div>
           <div className="stat-split">
-            <div className="split-item">
-              <span className="split-dot gov-dot"></span> Gov: ${ (govFunding / 1e6).toFixed(1) }M
-            </div>
-            <div className="split-item">
-              <span className="split-dot private-dot"></span> Private: ${ (privateFunding / 1e6).toFixed(1) }M
-            </div>
+            {loading ? (
+              <>
+                <div className="split-item"><div className="skeleton-bullet-line" style={{ width: '80px', height: '14px', margin: 0 }}></div></div>
+                <div className="split-item"><div className="skeleton-bullet-line" style={{ width: '80px', height: '14px', margin: 0 }}></div></div>
+              </>
+            ) : (
+              <>
+                <div className="split-item">
+                  <span className="split-dot gov-dot"></span> Gov: ${ (govFunding / 1e6).toFixed(1) }M
+                </div>
+                <div className="split-item">
+                  <span className="split-dot private-dot"></span> Private: ${ (privateFunding / 1e6).toFixed(1) }M
+                </div>
+              </>
+            )}
           </div>
         </div>
 
         <div className="drawer-timeline">
           {loading ? (
-            <p>Loading history...</p>
+            <div className="skeleton-timeline">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="timeline-item">
+                  <div className="timeline-marker" style={{ background: 'hsl(var(--border-light))' }}></div>
+                  <div className="timeline-content" style={{ width: '100%' }}>
+                    <div className="skeleton-bullet-line" style={{ width: '30%', height: '12px', marginBottom: '8px' }}></div>
+                    <div className="skeleton-bullet-line" style={{ width: '50%', height: '18px', marginBottom: '8px' }}></div>
+                    <div className="skeleton-bullet-line" style={{ width: '80%', height: '14px', marginBottom: '8px' }}></div>
+                    <div className="skeleton-bullet-line" style={{ width: '90%', height: '14px' }}></div>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : history.length === 0 ? (
             <p>No historical deals found.</p>
           ) : (

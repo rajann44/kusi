@@ -1094,6 +1094,14 @@ export default function App() {
                     <p style={{ fontSize: '16px', marginBottom: '8px' }}>📡 No records found.</p>
                     <p style={{ fontSize: '13px' }}>Try adjusting your search criteria or funding filters.</p>
                   </div>
+                ) : paginatedNews.length === 0 && isLogsLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="feed-item glass-panel" style={{ opacity: 1 - (i * 0.15) }}>
+                       <div className="skeleton-bullet-line" style={{ width: '15%', height: '12px', marginBottom: '16px' }}></div>
+                       <div className="skeleton-bullet-line" style={{ width: '70%', height: '22px', marginBottom: '12px' }}></div>
+                       <div className="skeleton-bullet-line" style={{ width: '40%', height: '16px' }}></div>
+                    </div>
+                  ))
                 ) : (
                   paginatedNews.map((item) => {
                     const isGov = item.funding_type === 'government';
