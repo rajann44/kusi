@@ -1,6 +1,6 @@
-# Kusi InvestAlert
+# Kusi
 
-InvestAlert is a real-time tracking application that monitors U.S. government grants, subsidies, and private venture capital deals. It processes feeds from SEC EDGAR and news sources, classifies financial events using Gemini AI, aggregates analytics, and delivers real-time notifications.
+Kusi is a real-time tracking application that monitors U.S. government grants, subsidies, and private venture capital deals. It processes feeds from SEC EDGAR and news sources, classifies financial events using Gemini AI, aggregates analytics, and delivers real-time notifications.
 
 ---
 

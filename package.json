@@ -1,5 +1,5 @@
 {
-  "name": "invest-alert-backend",
+  "name": "kusi-backend",
   "version": "1.0.0",
   "description": "Real-time investment and grant tracking backend",
   "main": "server.js",

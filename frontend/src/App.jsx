@@ -562,7 +562,7 @@ export default function App() {
       <header className="mobile-header">
         <div className="mobile-brand">
           <span className="brand-logo">⚡</span>
-          <span className="brand-name">InvestAlert</span>
+          <span className="brand-name">Kusi</span>
         </div>
         <button 
           type="button"
@@ -621,7 +621,7 @@ export default function App() {
         <div className="brand-section">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div className="brand-logo">⚡</div>
-            <div className="brand-name">InvestAlert</div>
+            <div className="brand-name">Kusi</div>
           </div>
         </div>
 
