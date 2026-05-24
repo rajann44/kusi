@@ -88,7 +88,7 @@ async function runBacktest() {
   }
 
   console.log('\n======================================================');
-  console.log('🧪   INVESTALERT CLASSIFIER BACKTEST SUITE   🧪');
+  console.log('🧪   KUSI CLASSIFIER BACKTEST SUITE   🧪');
   console.log('======================================================\n');
   console.log(`Running ${TEST_CASES.length} historical scenarios...\n`);
 

@@ -1,7 +1,7 @@
 import xml2js from 'xml2js';
 import { supabase } from './database.js';
 
-const SEC_USER_AGENT = 'RajanInvestAlert/1.0 rajan@ticker.app';
+const SEC_USER_AGENT = 'RajanKusi/1.0 rajan@ticker.app';
 const START_DATE = '2022-11-30';
 const END_DATE = new Date().toISOString().split('T')[0];
 
